@@ -1,0 +1,22 @@
+------------------ start ------------------
+data : D:/code/datasets/bddn/images
+epochs : 100
+batch_size : 8
+img_size : 640
+optimizer : lion
+num_workers : 0
+seed : 1999
+resume : False
+model_path : 
+amp : True
+loss : mse
+lr : 8.5e-05
+momentum : 0.9
+model : train
+b1 : 0.9
+b2 : 0.999
+device : cuda
+save_path : runs/
+benchmark : True
+deterministic : True
+------------------- end -------------------

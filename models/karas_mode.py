@@ -1,0 +1,18 @@
+def build_model():
+    model = Sequential()
+    model.add(InputLayer(input_shape=(None, None, 1)))
+    model.add(Conv2D(8, (3, 3), activation='relu', padding='same', strides=2))
+    model.add(Conv2D(8, (3, 3), activation='relu', padding='same'))
+    model.add(Conv2D(16, (3, 3), activation='relu', padding='same'))
+    model.add(Conv2D(16, (3, 3), activation='relu', padding='same', strides=2))
+    model.add(Conv2D(32, (3, 3), activation='relu', padding='same'))
+    model.add(Conv2D(32, (3, 3), activation='relu', padding='same', strides=2))
+    model.add(UpSampling2D((2, 2)))
+    model.add(Conv2D(32, (3, 3), activation='relu', padding='same'))
+    model.add(UpSampling2D((2, 2)))
+    model.add(Conv2D(16, (3, 3), activation='relu', padding='same'))
+    model.add(UpSampling2D((2, 2)))
+    model.add(Conv2D(2, (3, 3), activation='tanh', padding='same'))
+    Adam(learning_rate=opt.lr, beta_1=opt.b1, beta_2=opt.b2)
+    model.compile(optimizer=opt.optimizer, loss=opt.loss, metrics=['accuracy'])
+    return model
