@@ -14,13 +14,10 @@ from torchvision.transforms import transforms
 from tqdm import tqdm
 
 from datasets.data_set import MyDataset
-from models.base_mode import BaseModel
+from models.base_mode import BaseModel, ConvertV1, ConvertV2
 from utils.img_progress import process_image
 from utils.loss import BCEBlurWithLogitsLoss
 from utils.model_map import model_structure
-
-# 储存断点信息
-checkpoint = {}
 
 
 # 初始化随机种子
@@ -36,6 +33,17 @@ def set_random_seed(seed=10, deterministic=False, benchmark=False):
 
 
 def train(self):
+
+    args_dict = self.__dict__
+    # 打印配置
+    with open(opt.save_path + 'setting.txt', 'w') as f:
+        f.writelines('------------------ start ------------------' + '\n')
+        for eachArg, value in args_dict.items():
+            f.writelines(eachArg + ' : ' + str(value) + '\n')
+        f.writelines('------------------- end -------------------')
+
+
+
     # 训练前数据准备
     device = torch.device('cpu')
     if self.device == 'cuda':
@@ -45,11 +53,15 @@ def train(self):
                                     filename_suffix=str(self.epochs),
                                     flush_secs=180)
     set_random_seed(self.seed, deterministic=self.deterministic, benchmark=self.benchmark)
-    mode = BaseModel()
+
+    # 选择模型参数
+
+    mode = ConvertV1()
     mode = mode.to(device)
     print(mode)
     print('train model at the %s device' % device)
     os.makedirs(self.save_path, exist_ok=True)
+    # assert self.batch_size ==1,'batch-size > 1 may led some question when detecting by caps'
     train_data = MyDataset(self.data)
 
     train_loader = DataLoader(train_data,
@@ -88,11 +100,17 @@ def train(self):
     for epoch in range(self.epochs):
         # 断点训练参数设置
         if self.resume:
-            path_checkpoint = "runs/last.pt"  # 断点路径
+            if self.model_path == '':
+                print('No model offered to resume, using last.pt!')
+                path_checkpoint = 'runs/last.pt'
+            else:
+                path_checkpoint = self.model_path  # 断点路径
+
             checkpoint = torch.load(path_checkpoint)  # 加载断点
             mode.load_state_dict(checkpoint['net'])
             optimizer.load_state_dict(checkpoint['optimizer'])
             epoch = checkpoint['epoch']  # 设置开始的epoch
+            loss.load_state_dict = checkpoint['loss']
             print('继续第：{}轮训练'.format(epoch + 1))
             self.resume = False
         else:
@@ -128,15 +146,16 @@ def train(self):
                                  % (epoch, self.epochs, target, len(train_loader), output.item(), accuracy))
 
             checkpoint = {
-                "net": mode.state_dict(),
+                'net': mode.state_dict(),
                 'optimizer': optimizer.state_dict(),
-                "epoch": epoch
+                'epoch': epoch,
+                'loss': loss.state_dict()
             }
             log.add_scalar('total loss', output.item(), epoch)
-            torch.save(mode, self.save_path + 'last.pt')
+            torch.save(checkpoint, self.save_path + 'last.pt')
         # 5 epochs for saving another model
-        if epoch % 10 == 0 and epoch >= 10:
-            torch.save(mode, self.save_path + '%d.pt' % epoch)
+            if epoch % 10 == 0 and epoch >= 10:
+                torch.save(checkpoint, self.save_path + '%d.pt' % epoch)
 
     log.close()
 
@@ -173,13 +192,7 @@ def parse_args():
     parser.add_argument("--deterministic", type=bool, default=True, help="whether to use deterministic initialization")
     opt = parser.parse_args()
     print(opt)
-    args_dict = opt.__dict__
-    # 打印配置
-    with open(opt.save_path + 'setting.txt', 'w') as f:
-        f.writelines('------------------ start ------------------' + '\n')
-        for eachArg, value in args_dict.items():
-            f.writelines(eachArg + ' : ' + str(value) + '\n')
-        f.writelines('------------------- end -------------------')
+
 
     return opt
 

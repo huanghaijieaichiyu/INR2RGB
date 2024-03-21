@@ -5,3 +5,4 @@ timm<=0.9.16
 torchvision<=0.17.0+cu118
 tqdm<=4.65.0
 pillow<=10.2.0
+tensorboard <= 2.16.2
