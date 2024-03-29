@@ -1,4 +1,4 @@
-torch<=2.2.0+cu118
+torch<=2.2.0
 opencv-python<=4.8
 numpy<=1.26.3
 timm<=0.9.16
@@ -6,3 +6,4 @@ torchvision<=0.17.0+cu118
 tqdm<=4.65.0
 pillow<=10.2.0
 tensorboard <= 2.16.2
+ptflops

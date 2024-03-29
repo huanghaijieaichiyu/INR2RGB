@@ -3,5 +3,5 @@
   <component name="Black">
     <option name="sdkName" value="Python 3.10 (pytorch)" />
   </component>
-  <component name="ProjectRootManager" version="2" project-jdk-name="pytorch-CycleGAN-and-pix2pix" project-jdk-type="Python SDK" />
+  <component name="ProjectRootManager" version="2" project-jdk-name="Python 3.10 (INR2RGB)" project-jdk-type="Python SDK" />
 </project>
