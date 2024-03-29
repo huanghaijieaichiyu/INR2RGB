@@ -30,6 +30,6 @@ def model_structure(model):
         print('| {} | {} | {} |'.format(key, shape, str_num))
     print('-' * 90)
     print('The total number of parameters: ' + str(num_para))
-    print('The parameters of Model {}: {:2f} M'.format(model._get_name(), num_para * type_size / 1000 / 1000))
-    print('The Gflops of {}: {:2f} G'.format(model._get_name(), (2 * int(macs) * 1e-9)))
+    print('The parameters of Model {}: {:.2f} M'.format(model._get_name(), num_para * type_size / 1000 / 1000))
+    print('The Gflops of {}: {:.2f} G'.format(model._get_name(), (2 * int(macs) * 1e-9)))
     print('-' * 90)

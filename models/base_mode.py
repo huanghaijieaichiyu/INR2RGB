@@ -47,22 +47,32 @@ class ConvertV1(nn.Module):
 
     def __init__(self):
         super(ConvertV1, self).__init__()
-        self.conv1 = nn.Sequential(
-            Conv(1, 8),
-            CA(8, 8),
-            RepNCSPELAN4(8, 16, 16, 8),
-            RepNCSPELAN4(16, 32, 32, 16),
-            RepNCSPELAN4(32, 64, 64, 32),
-            SPPELAN(64, 64, 23),
-            Conv(64, 32),
-            RepNCSPELAN4(32, 16, 16, 8),
-            RepNCSPELAN4(16, 8, 8, 4),
-            Conv(8, 2, act=False),
-            nn.Tanh()
-        )
+        self.conv1 = Conv(1, 8, 3)
+        self.conv2 = CA(8, 8)
+        self.conv3 = RepNCSPELAN4(8, 16, 16, 8)
+        self.conv4 = RepNCSPELAN4(16, 32, 32, 16)
+        self.conv5 = SPPELAN(32, 32, 16)
+        self.conv6 = RepNCSPELAN4(32, 16, 16, 8)
+        self.conv7 = RepNCSPELAN4(32, 16, 16, 8)
+        self.conv8 = Conv(24, 8, 3)
+        self.conv9 = Conv(8, 2, act=False)
+        self.tanh = nn.Tanh()
+        self.concat = Concat()
 
     def forward(self, x):
-        x = self.conv1(x)
+        x1 = self.conv1(x)
+        x2 = self.conv2(x1)
+        x3 = self.conv3(x2)
+        x4 = self.conv4(x3)
+        x5 = self.conv5(x4)
+        x6 = self.conv6(x5)
+        x7 = self.concat([x3, x6])
+        x7 = self.conv7(x7)
+        x8 = self.concat([x2, x7])
+        x = self.conv8(x8)
+        x = self.conv9(x)
+        x = self.tanh(x)
+
         x = x.view(-1, 2, 640, 640)
         x = torch.permute(x, (0, 2, 3, 1))
 

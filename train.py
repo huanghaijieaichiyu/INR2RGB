@@ -63,7 +63,7 @@ def train(self):
 
     # 选择模型参数
 
-    mode = ConvertV3()
+    mode = ConvertV1()
     model_structure(mode)
     mode = mode.to(device)
     # print(mode)
@@ -174,8 +174,8 @@ def train(self):
             f.write(to_write)
 
             # 5 epochs for saving another model
-        if epoch+1 % 10 == 0 and epoch+1 >= 10:
-            torch.save(checkpoint, path + '/%d.pt' % epoch+1)
+        if (epoch+1) % 10 == 0 and (epoch+1) >= 10:
+            torch.save(checkpoint, path + '/%d.pt' % (epoch+1))
     log.close()
 
 
