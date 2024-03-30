@@ -15,7 +15,7 @@ from torchvision.transforms import transforms
 from tqdm import tqdm
 
 from datasets.data_set import MyDataset
-from models.base_mode import BaseModel, ConvertV1, ConvertV2, ConvertV3
+from models.base_mode import BaseModel, ConvertV1, ConvertV2
 from utils.img_progress import process_image
 from utils.loss import BCEBlurWithLogitsLoss
 from utils.model_map import model_structure
@@ -44,12 +44,6 @@ def train(self):
 
     args_dict = self.__dict__
     print(args_dict)
-    # 打印配置
-    with open(path + '/setting.txt', 'w') as f:
-        f.writelines('------------------ start ------------------' + '\n')
-        for eachArg, value in args_dict.items():
-            f.writelines(eachArg + ' : ' + str(value) + '\n')
-        f.writelines('------------------- end -------------------')
 
     # 训练前数据准备
     device = torch.device('cpu')
@@ -63,13 +57,26 @@ def train(self):
 
     # 选择模型参数
 
-    mode = ConvertV1()
-    model_structure(mode)
+    mode = ConvertV2()
+    print('-' * 100)
+    print('Drawing model graph to tensorboard, you can check it with:http://127.0.0.1:6006 after running tensorboard '
+          '--logdir={}'.format(os.path.join(self.save_path, 'tensorboard')))
+    log.add_graph(mode, torch.randn(1, 1, self.img_size, self.img_size))
+    print('Drawing dnoe!')
+    print('-' * 100)
+    params, macs = model_structure(mode)
     mode = mode.to(device)
-    # print(mode)
+    # 打印配置
+    with open(path + '/setting.txt', 'w') as f:
+        f.writelines('------------------ start ------------------' + '\n')
+        for eachArg, value in args_dict.items():
+            f.writelines(eachArg + ' : ' + str(value) + '\n')
+        f.writelines('------------------- end -------------------')
+        f.writelines('\n' + 'The parameters of Model ConvertV1: {:.2f} M'.format(params) + '\n' + 'The Gflops of '
+                                                                                                  'ConvertV1: {:.2f}'
+                                                                                                  ' G'.format(macs))
     print('train model at the %s device' % device)
     os.makedirs(path, exist_ok=True)
-    # assert self.batch_size ==1,'batch-size > 1 may led some question when detecting by caps'
     train_data = MyDataset(self.data)
 
     train_loader = DataLoader(train_data,
@@ -77,7 +84,6 @@ def train(self):
                               num_workers=self.num_workers,
                               drop_last=False)
     assert len(train_loader) != 0, 'no data loaded'
-    # print(train_loader)
     if self.optimizer == 'AdamW' or self.optimizer == 'Adam':
         optimizer = torch.optim.AdamW(params=mode.parameters(), lr=self.lr, betas=(self.b1, self.b2))
     elif self.optimizer == 'SGD':
@@ -100,22 +106,20 @@ def train(self):
         print('no such Loss Function!')
         raise NotImplementedError
     loss = loss.to(device)
-    # log.add_graph(mode)
+
     img_transform = transforms.Compose([
         transforms.ToPILImage()
     ])
 
-    print('begin training...')
+    # 储存loss 判断模型好坏
+    Loss = [99., 98.]
     # 此处开始训练
     mode.train()
     for epoch in range(self.epochs):
+
         # 断点训练参数设置
-        if self.resume:
-            if self.model_path == '':
-                print('No model offered to resume, using last.pt!')
-                path_checkpoint = 'runs/last.pt'
-            else:
-                path_checkpoint = self.model_path  # 断点路径
+        if self.resume != '':
+            path_checkpoint = self.resume
 
             checkpoint = torch.load(path_checkpoint)  # 加载断点
             mode.load_state_dict(checkpoint['net'])
@@ -123,9 +127,6 @@ def train(self):
             epoch = checkpoint['epoch']  # 设置开始的epoch
             loss.load_state_dict = checkpoint['loss']
             print('继续第：{}轮训练'.format(epoch + 1))
-            self.resume = False
-        else:
-            pass
 
         print('第{}轮训练'.format(epoch + 1))
         pbar = tqdm(enumerate(train_loader), total=len(train_loader), bar_format='{l_bar}{bar:10}| {n_fmt}/{'
@@ -149,11 +150,15 @@ def train(self):
                 output = loss(x_trans, y)  # ---大坑--损失函数计算必须全是tensor
                 output.backward()
                 optimizer.step()
-            accuracy = torch.eq(output, y).float().mean()
+
+            # 加入新的评价指标：PSNR,SSIM
+            max_pix = 255.
+            psnr = 10 * np.log10((max_pix ** 2) / output.item())
+
             pbar.set_description("Epoch [%d/%d] ---------------  Batch [%d/%d] ---------------  loss: %.4f "
                                  "---------------"
-                                 "accuracy: %.4f"
-                                 % (epoch + 1, self.epochs, target + 1, len(train_loader), output.item(), accuracy))
+                                 "PSNR: %.4f"
+                                 % (epoch + 1, self.epochs, target + 1, len(train_loader), output.item(), psnr))
 
             checkpoint = {
                 'net': mode.state_dict(),
@@ -162,8 +167,13 @@ def train(self):
                 'loss': loss.state_dict()
             }
             log.add_scalar('total loss', output.item(), epoch)
+            log.add_scalar('PSNR', psnr)
+        Loss.append(output.item())
+        # 目前没有其他可用的评估方法，暂时依靠loss来判断最佳模型
 
-            # 保持训练权重
+        if output.item() < min(Loss):
+            torch.save(checkpoint, path + '/best.pt')
+        # 保持训练权重
         torch.save(checkpoint, path + '/last.pt')
 
         # 写入日志文件
@@ -174,8 +184,8 @@ def train(self):
             f.write(to_write)
 
             # 5 epochs for saving another model
-        if (epoch+1) % 10 == 0 and (epoch+1) >= 10:
-            torch.save(checkpoint, path + '/%d.pt' % (epoch+1))
+        if (epoch + 1) % 10 == 0 and (epoch + 1) >= 10:
+            torch.save(checkpoint, path + '/%d.pt' % (epoch + 1))
     log.close()
 
 
@@ -190,8 +200,7 @@ def parse_args():
                         help="number of data loading workers, if in windows, must be 0"
                         )
     parser.add_argument("--seed", type=int, default=1999, help="random seed")
-    parser.add_argument("--resume", type=bool, default=False, help="path to latest checkpoint,yes or no")
-    parser.add_argument("--model_path", type=str, default='', help="path to saved model")
+    parser.add_argument("--resume", type=str, default='', help="path to latest checkpoint,yes or no")
     parser.add_argument("--amp", type=bool, default=True, help="Whether to use amp in mixed precision")
     parser.add_argument("--loss", type=str, default='mse', choices=['BCEBlurWithLogitsLoss', 'mse',
                                                                     'SoftTargetCrossEntropy'],
