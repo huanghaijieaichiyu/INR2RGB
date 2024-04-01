@@ -2,7 +2,7 @@ from ptflops import get_model_complexity_info
 import torch
 
 
-def model_structure(model):
+def model_structure(model, img_size):
     blank = ' '
     print('-' * 142)
     print('|' + ' ' * 17 + 'weight name' + ' ' * 40 + '|' \
@@ -11,7 +11,7 @@ def model_structure(model):
     print('-' * 142)
     num_para = 0
     type_size = 1  # 如果是浮点数就是4
-    macs, params = get_model_complexity_info(model, (1, 640, 640), as_strings=False, print_per_layer_stat=False,
+    macs, params = get_model_complexity_info(model, img_size, as_strings=False, print_per_layer_stat=False,
                                              verbose=False)
     for index, (key, w_variable) in enumerate(model.named_parameters()):
         if len(key) <= 67:

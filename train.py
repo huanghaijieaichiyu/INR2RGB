@@ -15,7 +15,7 @@ from torchvision.transforms import transforms
 from tqdm import tqdm
 
 from datasets.data_set import MyDataset
-from models.base_mode import BaseModel, ConvertV1, ConvertV2
+from models.base_mode import ConvertV1, ConvertV2, BaseModel
 from utils.img_progress import process_image
 from utils.loss import BCEBlurWithLogitsLoss
 from utils.model_map import model_structure
@@ -61,10 +61,10 @@ def train(self):
     print('-' * 100)
     print('Drawing model graph to tensorboard, you can check it with:http://127.0.0.1:6006 after running tensorboard '
           '--logdir={}'.format(os.path.join(self.save_path, 'tensorboard')))
-    log.add_graph(mode, torch.randn(1, 1, self.img_size, self.img_size))
+    log.add_graph(mode, torch.randn(1, 1, self.img_size[0], self.img_size[1]))
     print('Drawing dnoe!')
     print('-' * 100)
-    params, macs = model_structure(mode)
+    params, macs = model_structure(mode, img_size=(1, self.img_size[0], self.img_size[1]))
     mode = mode.to(device)
     # 打印配置
     with open(path + '/setting.txt', 'w') as f:
@@ -77,12 +77,13 @@ def train(self):
                                                                                                   ' G'.format(macs))
     print('train model at the %s device' % device)
     os.makedirs(path, exist_ok=True)
-    train_data = MyDataset(self.data)
+
+    train_data = MyDataset(self.data, img_size=self.img_size)
 
     train_loader = DataLoader(train_data,
                               batch_size=self.batch_size,
                               num_workers=self.num_workers,
-                              drop_last=False)
+                              drop_last=True)
     assert len(train_loader) != 0, 'no data loaded'
     if self.optimizer == 'AdamW' or self.optimizer == 'Adam':
         optimizer = torch.optim.AdamW(params=mode.parameters(), lr=self.lr, betas=(self.b1, self.b2))
@@ -102,17 +103,17 @@ def train(self):
         loss = nn.MSELoss()
     elif self.loss == 'SoftTargetCrossEntropy':
         loss = SoftTargetCrossEntropy()
+    elif self.loss == 'bce':
+        loss = nn.BCEWithLogitsLoss()
     else:
         print('no such Loss Function!')
         raise NotImplementedError
     loss = loss.to(device)
 
-    img_transform = transforms.Compose([
-        transforms.ToPILImage()
-    ])
+    img_transform = transforms.ToPILImage()
 
     # 储存loss 判断模型好坏
-    Loss = [99., 98.]
+    Loss = [1.0]
     # 此处开始训练
     mode.train()
     for epoch in range(self.epochs):
@@ -168,11 +169,13 @@ def train(self):
             }
             log.add_scalar('total loss', output.item(), epoch)
             log.add_scalar('PSNR', psnr)
-        Loss.append(output.item())
+
         # 目前没有其他可用的评估方法，暂时依靠loss来判断最佳模型
 
-        if output.item() < min(Loss):
+        if output.item() <= min(Loss):
             torch.save(checkpoint, path + '/best.pt')
+
+        Loss.append(output.item())
         # 保持训练权重
         torch.save(checkpoint, path + '/last.pt')
 
@@ -194,7 +197,7 @@ def parse_args():
     parser.add_argument("--data", type=str, help="path to dataset", required=True)
     parser.add_argument("--epochs", type=int, default=1000, help="number of epochs of training")  # 迭代次数
     parser.add_argument("--batch_size", type=int, default=32, help="size of the batches")  # batch大小
-    parser.add_argument("--img_size", type=int, default=640, help="size of the image")
+    parser.add_argument("--img_size", type=tuple, default=(480, 480), help="size of the image")
     parser.add_argument("--optimizer", type=str, default='lion', choices=['AdamW', 'SGD', 'Adam', 'lion', 'rmp'])
     parser.add_argument("--num_workers", type=int, default=0,
                         help="number of data loading workers, if in windows, must be 0"
@@ -202,7 +205,7 @@ def parse_args():
     parser.add_argument("--seed", type=int, default=1999, help="random seed")
     parser.add_argument("--resume", type=str, default='', help="path to latest checkpoint,yes or no")
     parser.add_argument("--amp", type=bool, default=True, help="Whether to use amp in mixed precision")
-    parser.add_argument("--loss", type=str, default='mse', choices=['BCEBlurWithLogitsLoss', 'mse',
+    parser.add_argument("--loss", type=str, default='mse', choices=['BCEBlurWithLogitsLoss', 'mse', 'bce',
                                                                     'SoftTargetCrossEntropy'],
                         help="loss function")
     parser.add_argument("--lr", type=float, default=6.4e-5, help="learning rate, for adam is 1-e3, SGD is 1-e2")  # 学习率

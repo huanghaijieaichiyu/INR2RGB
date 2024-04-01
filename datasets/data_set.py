@@ -38,11 +38,12 @@ img_transform = transforms.Compose([
 
 
 class MyDataset(Dataset):
-    def __init__(self, dir_path, transform=img_transform):
+    def __init__(self, dir_path, img_size, transform=img_transform):
         super(MyDataset, self).__init__()
         self.dir_path = dir_path  # 数据集根目录
         self.transform = transform
         self.images, self.labels = get_images_and_labels(self.dir_path)
+        self.img_size = img_size
 
     def __len__(self):
         # 返回数据集的数据数量
@@ -53,7 +54,7 @@ class MyDataset(Dataset):
         label = self.labels[index]
         img = cv2.imread(img_path)
 
-        img = cv2.resize(img, (640, 640))
+        img = cv2.resize(img, self.img_size)
         img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
         """
         cv2.imshow('img', img)
