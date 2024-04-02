@@ -135,7 +135,6 @@ def train(self):
         for data in pbar:
             target, (img1, label) = data
 
-            print(img1)
             img = img1[0]  # c=此步去除tensor中的bach-size 4维降3
             img = img_transform(img)
             x, y, image_size = process_image(img)
