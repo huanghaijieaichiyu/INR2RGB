@@ -98,7 +98,7 @@ class ConvertV2(nn.Module):
         self.conv7 = C2f(16, 8, shortcut=True)
         self.conv8 = Conv(16, 8, 3)
         self.conv9 = C2f(8, 8)
-        self.conv_out = Conv(8, 2, 3, act=False)
+        self.conv_out = Conv(8, 3, 3, act=False)
         self.tanh = nn.Tanh()
         self.concat = Concat()
 
@@ -115,9 +115,61 @@ class ConvertV2(nn.Module):
         x8 = self.conv8(x7)
         x8 = self.conv9(x8)
         x9 = self.conv_out(x8)
-        x = self.tanh(x9)
+        x10 = self.tanh(x9)
 
-        x = x.view(-1, 2, 480, 480)
-        x = torch.permute(x, (0, 2, 3, 1))
+        x = x10.view(-1, 1, x.shape[0], x.shape[1])
+
+        return x
+
+
+class Generator(nn.Module):
+
+    def __init__(self) -> None:
+        super(Generator, self).__init__()
+        self.conv1 = nn.Sequential(
+            Conv(3, 8, 3, 2),
+            nn.LeakyReLU(),
+            Conv(8, 16, 3),
+            nn.Upsample(scale_factor=2),
+            nn.LeakyReLU(),
+            Conv(16, 32, 5, 2),
+            nn.LeakyReLU(),
+            Conv(32, 32, 3),
+            nn.Upsample(scale_factor=2),
+            nn.LeakyReLU(),
+            Conv(32, 16, 3, 2),
+            nn.LeakyReLU(),
+            Conv(16, 8, 3),
+            nn.Upsample(scale_factor=2),
+            nn.LeakyReLU(),
+            Conv(8, 3, 3, act=False),
+            nn.Tanh()  # 预测值映射
+        )
+
+    def forward(self, x):
+
+        x = self.conv1(x)
+        x = x.view(-1, x.shape[1], x.shape[2], x.shape[3])
+
+        return x
+
+
+class Discriminator(nn.Module):
+    def __init__(self):
+        super(Discriminator, self).__init__()
+        self.conv_in = Conv(3, 8, 3, 2)
+        self.conv1 = Conv(8, 16, 3, 2)
+        self.conv2 = Conv(16, 8, 3, 2)
+        self.conv_out = Conv(8, 3, 3, 2)
+        self.sig = nn.Sigmoid()
+        self.linear1 = nn.Linear(30, 1)
+
+    def forward(self, x):
+        x1 = self.conv_in(x)
+        x2 = self.conv1(x1)
+        x3 = self.conv2(x2)
+        x4 = self.conv_out(x3)
+        x = self.linear1(x4)
+        x = self.sig(x)
 
         return x

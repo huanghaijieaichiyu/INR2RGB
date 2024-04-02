@@ -5,18 +5,18 @@ import time
 
 import numpy as np
 import torch
+from skimage.metrics import structural_similarity
 from timm.loss import SoftTargetCrossEntropy
 from timm.optim import Lion, RMSpropTF
 from torch import nn
 from torch.cuda.amp import autocast
 from torch.utils import tensorboard
 from torch.utils.data import DataLoader
-from torchvision.transforms import transforms
+from torchvision import transforms
 from tqdm import tqdm
 
 from datasets.data_set import MyDataset
-from models.base_mode import ConvertV1, ConvertV2, BaseModel
-from utils.img_progress import process_image
+from models.base_mode import Generator, Discriminator
 from utils.loss import BCEBlurWithLogitsLoss
 from utils.model_map import model_structure
 from utils.save_path import Path
@@ -37,10 +37,11 @@ def set_random_seed(seed=10, deterministic=False, benchmark=False):
 def train(self):
     # 避免同名覆盖
     path = Path(self.save_path)
-    os.makedirs(path)
+    os.makedirs(os.path.join(path, 'generator'))
+    os.makedirs(os.path.join(path, 'discriminator'))
     # 创建训练日志文件
     train_log = path + '/log.txt'
-    train_log_txt_formatter = '{time_str} [Epoch] {epoch:03d} [Loss] {loss_str}\n'
+    train_log_txt_formatter = '{time_str} [Epoch] {epoch:03d} [gLoss] {gloss_str} [dLoss] {dloss_str}\n'
 
     args_dict = self.__dict__
     print(args_dict)
@@ -57,25 +58,36 @@ def train(self):
 
     # 选择模型参数
 
-    mode = ConvertV2()
+    generator = Generator()
+    discriminator = Discriminator()
+
     print('-' * 100)
     print('Drawing model graph to tensorboard, you can check it with:http://127.0.0.1:6006 after running tensorboard '
           '--logdir={}'.format(os.path.join(self.save_path, 'tensorboard')))
-    log.add_graph(mode, torch.randn(1, 1, self.img_size[0], self.img_size[1]))
+    log.add_graph(generator, torch.randn(1, 3, self.img_size[0], self.img_size[1]))
+    log.add_graph(discriminator, torch.randn(1, 3, self.img_size[0], self.img_size[1]))
     print('Drawing dnoe!')
     print('-' * 100)
-    params, macs = model_structure(mode, img_size=(1, self.img_size[0], self.img_size[1]))
-    mode = mode.to(device)
+    print('Generator model info: \n')
+    g_params, g_macs = model_structure(generator, img_size=(3, self.img_size[0], self.img_size[1]))
+    print('Discriminator model info: \n')
+    d_params, d_macs = model_structure(discriminator, img_size=(3, self.img_size[0], self.img_size[1]))
+    generator = generator.to(device)
+    discriminator = discriminator.to(device)
     # 打印配置
     with open(path + '/setting.txt', 'w') as f:
         f.writelines('------------------ start ------------------' + '\n')
         for eachArg, value in args_dict.items():
             f.writelines(eachArg + ' : ' + str(value) + '\n')
         f.writelines('------------------- end -------------------')
-        f.writelines('\n' + 'The parameters of Model ConvertV1: {:.2f} M'.format(params) + '\n' + 'The Gflops of '
+        f.writelines('\n' + 'The parameters of generator: {:.2f} M'.format(g_params) + '\n' + 'The Gflops of '
+                                                                                              'ConvertV1: {:.2f}'
+                                                                                              ' G'.format(g_macs))
+        f.writelines('\n' + 'The parameters of discriminator: {:.2f} M'.format(d_params) + '\n' + 'The Gflops of '
                                                                                                   'ConvertV1: {:.2f}'
-                                                                                                  ' G'.format(macs))
-    print('train model at the %s device' % device)
+                                                                                                  ' G'.format(d_macs))
+        f.writelines('\n' + '-------------------------------------------')
+    print('train models at the %s device' % device)
     os.makedirs(path, exist_ok=True)
 
     train_data = MyDataset(self.data, img_size=self.img_size)
@@ -85,15 +97,21 @@ def train(self):
                               num_workers=self.num_workers,
                               drop_last=True)
     assert len(train_loader) != 0, 'no data loaded'
+
     if self.optimizer == 'AdamW' or self.optimizer == 'Adam':
-        optimizer = torch.optim.AdamW(params=mode.parameters(), lr=self.lr, betas=(self.b1, self.b2))
+        g_optimizer = torch.optim.AdamW(params=generator.parameters(), lr=self.lr, betas=(self.b1, self.b2))
+        d_optimizer = torch.optim.AdamW(params=discriminator.parameters(), lr=self.lr, betas=(self.b1, self.b2))
     elif self.optimizer == 'SGD':
-        optimizer = torch.optim.SGD(params=mode.parameters(), lr=self.lr, momentum=self.momentum)
+        g_optimizer = torch.optim.SGD(params=generator.parameters(), lr=self.lr, momentum=self.momentum)
+        d_optimizer = torch.optim.SGD(params=discriminator.parameters(), lr=self.lr, momentum=self.momentum)
     elif self.optimizer == 'lion':
-        optimizer = Lion(params=mode.parameters(), lr=self.lr, betas=(self.b1, self.b2))
+        g_optimizer = Lion(params=generator.parameters(), lr=self.lr, betas=(self.b1, self.b2))
+        d_optimizer = Lion(params=discriminator.parameters(), lr=self.lr, betas=(self.b1, self.b2))
     elif self.optimizer == 'rmp':
-        optimizer = RMSpropTF(params=mode.parameters(), lr=self.lr, momentum=self.momentum,
-                              lr_in_momentum=self.lr * self.momentum)
+        g_optimizer = RMSpropTF(params=generator.parameters(), lr=self.lr, momentum=self.momentum,
+                                lr_in_momentum=self.lr * self.momentum)
+        d_optimizer = RMSpropTF(params=discriminator.parameters(), lr=self.lr, momentum=self.momentum,
+                                lr_in_momentum=self.lr * self.momentum)
     else:
         raise ValueError('No such optimizer: {}'.format(self.optimizer))
 
@@ -110,85 +128,135 @@ def train(self):
         raise NotImplementedError
     loss = loss.to(device)
 
-    img_transform = transforms.ToPILImage()
+    g_loss = loss
+    d_loss = loss
+
+    img_2gray = transforms.Grayscale(3)
+    img_pil = transforms.ToPILImage()
 
     # 储存loss 判断模型好坏
-    Loss = [1.0]
+    gLoss = [9.]
+    dLoss = [9.]
+
     # 此处开始训练
-    mode.train()
+    generator.train()
+    discriminator.train()
     for epoch in range(self.epochs):
 
         # 断点训练参数设置
-        if self.resume != '':
-            path_checkpoint = self.resume
+        if self.resume is not None:
+            if isinstance(self.resume, str):
 
-            checkpoint = torch.load(path_checkpoint)  # 加载断点
-            mode.load_state_dict(checkpoint['net'])
-            optimizer.load_state_dict(checkpoint['optimizer'])
-            epoch = checkpoint['epoch']  # 设置开始的epoch
-            loss.load_state_dict = checkpoint['loss']
-            print('继续第：{}轮训练'.format(epoch + 1))
+                g_path_checkpoint = self.resume[0]
+                d_path_checkpoint = self.resume[1]
+
+                g_checkpoint = torch.load(g_path_checkpoint)  # 加载断点
+                generator.load_state_dict(g_checkpoint['net'])
+                g_optimizer.load_state_dict(g_checkpoint['optimizer'])
+                g_epoch = g_checkpoint['epoch']  # 设置开始的epoch
+                g_loss.load_state_dict = g_checkpoint['loss']
+
+                d_checkpoint = torch.load(d_path_checkpoint)  # 加载断点
+                discriminator.load_state_dict(d_checkpoint['net'])
+                d_optimizer.load_state_dict(d_checkpoint['optimizer'])
+                d_epoch = d_checkpoint['epoch']  # 设置开始的epoch
+                d_loss.load_state_dict = d_checkpoint['loss']
+
+                if g_epoch != d_epoch:
+                    print('given models are mismatched')
+                    raise NotImplementedError
+
+                epoch = g_epoch
+
+                print('继续第：{}轮训练'.format(epoch + 1))
 
         print('第{}轮训练'.format(epoch + 1))
         pbar = tqdm(enumerate(train_loader), total=len(train_loader), bar_format='{l_bar}{bar:10}| {n_fmt}/{'
                                                                                  'total_fmt} {elapsed}')
         for data in pbar:
-            target, (img1, label) = data
-            img = img1[0]  # c=此步去除tensor中的bach-size 4维降3
-            img = img_transform(img)
-            x, y, image_size = process_image(img)
+            target, (img, label) = data
+            img /= 255.   # 归一处理
+            # print(img)
+            # 对输入图像进行处理
+            img = img.to(device)
+            img_gray = img_2gray(img)
+            img_gray = img_gray.to(device)
 
-            x = torch.tensor(x, dtype=torch.float32)
-            x = x.to(device)
-            y = torch.tensor(y, dtype=torch.float32)
-            y = y.to(device)
+            # 开始训练
 
-            optimizer.zero_grad()
             with autocast(enabled=self.amp):
-                # 训练前交换维度
-                x_trans = torch.permute(x, (0, 3, 1, 2))
-                x_trans = mode(x_trans)
-                output = loss(x_trans, y)  # ---大坑--损失函数计算必须全是tensor
-                output.backward()
-                optimizer.step()
+                g_optimizer.zero_grad()
+                fake = generator(img_gray)
+                g_output = g_loss(fake, img)  # ---大坑--损失函数计算必须全是tensor
+                g_output.backward()
+                g_optimizer.step()
 
-            # 加入新的评价指标：PSNR,SSIM
+                d_optimizer.zero_grad()
+                fake_outputs = discriminator(fake.detach())  # 训练完成后的tensor在调用时要加.detach()
+                real_outputs = discriminator(img)
+
+                d_output = d_loss(fake_outputs, real_outputs)
+                d_output.backward()
+                d_optimizer.step()
+
+
+                # 加入新的评价指标：PSNR,SSIM
             max_pix = 255.
-            psnr = 10 * np.log10((max_pix ** 2) / output.item())
+            psn = 10 * np.log10((max_pix ** 2) / g_output.item())
+            ssim = structural_similarity(np.array(img_pil(img[0]), dtype=np.float32),
+                                         np.array(img_pil(fake[0]), dtype=np.float32), win_size=None,
+                                         gradient=False,
+                                         data_range=1,
+                                         channel_axis=2, multichannel=False, gaussian_weights=False, full=False)
 
-            pbar.set_description("Epoch [%d/%d] ---------------  Batch [%d/%d] ---------------  loss: %.4f "
-                                 "---------------"
-                                 "PSNR: %.4f"
-                                 % (epoch + 1, self.epochs, target + 1, len(train_loader), output.item(), psnr))
+            pbar.set_description("Epoch [%d/%d] ----------- Batch [%d/%d] -----------  Generator loss: %.4f "
+                                 "-----------  Discriminator loss: %.4f-----------"
+                                 "PSN: %.4f----------- SSIM: %.4f"
+                                 % (epoch + 1, self.epochs, target + 1, len(train_loader), g_output.item(),
+                                    d_output.item(), psn, ssim))
 
-            checkpoint = {
-                'net': mode.state_dict(),
-                'optimizer': optimizer.state_dict(),
+            log.add_images('real', img, epoch*10)
+            log.add_images('fake', fake, epoch*10)
+
+            g_checkpoint = {
+                'net': generator.state_dict(),
+                'optimizer': g_optimizer.state_dict(),
                 'epoch': epoch,
-                'loss': loss.state_dict()
+                'loss': g_loss.state_dict()
             }
-            log.add_scalar('total loss', output.item(), epoch)
-            log.add_scalar('PSNR', psnr)
+            d_checkpoint = {
+                'net': discriminator.state_dict(),
+                'optimizer': d_optimizer.state_dict(),
+                'epoch': epoch,
+                'loss': d_loss.state_dict()
+            }
+            log.add_scalar('generator total loss', g_output.item(), epoch)
+            log.add_scalar('discriminator total loss', d_output.item(), epoch)
+            log.add_scalar('generator_PSNR', psn, epoch)
 
         # 目前没有其他可用的评估方法，暂时依靠loss来判断最佳模型
 
-        if output.item() <= min(Loss):
-            torch.save(checkpoint, path + '/best.pt')
+        if g_output.item() <= min(gLoss):
+            torch.save(g_checkpoint, path + '/generator/best.pt')
 
-        Loss.append(output.item())
+        gLoss.append(g_output.item())
+        dLoss.append(d_output.item())
         # 保持训练权重
-        torch.save(checkpoint, path + '/last.pt')
+        torch.save(g_checkpoint, path + '/generator/last.pt')
+        torch.save(d_checkpoint, path + '/discriminator/last.pt')
 
         # 写入日志文件
         to_write = train_log_txt_formatter.format(time_str=time.strftime("%Y_%m_%d_%H:%M:%S"),
                                                   epoch=epoch + 1,
-                                                  loss_str=" ".join(["{:4f}".format(output.item())]))
+                                                  gloss_str=" ".join(["{:4f}".format(g_output.item())]),
+                                                  dloss_str=" ".join(["{:4f}".format(d_output.item())]))
         with open(train_log, "a") as f:
             f.write(to_write)
 
             # 5 epochs for saving another model
         if (epoch + 1) % 10 == 0 and (epoch + 1) >= 10:
-            torch.save(checkpoint, path + '/%d.pt' % (epoch + 1))
+            torch.save(g_checkpoint, path + '/generator/%d.pt' % (epoch + 1))
+            torch.save(d_checkpoint, path + '/discriminator/%d.pt' % (epoch + 1))
     log.close()
 
 
@@ -203,7 +271,7 @@ def parse_args():
                         help="number of data loading workers, if in windows, must be 0"
                         )
     parser.add_argument("--seed", type=int, default=1999, help="random seed")
-    parser.add_argument("--resume", type=str, default='', help="path to latest checkpoint,yes or no")
+    parser.add_argument("--resume", type=tuple, default=[], help="path to two latest checkpoint,yes or no")
     parser.add_argument("--amp", type=bool, default=True, help="Whether to use amp in mixed precision")
     parser.add_argument("--loss", type=str, default='mse', choices=['BCEBlurWithLogitsLoss', 'mse', 'bce',
                                                                     'SoftTargetCrossEntropy'],

@@ -8,11 +8,10 @@ from PIL import Image
 from torch.utils import tensorboard
 from torch.utils.data import DataLoader
 from torchvision import transforms
-from torchvision.datasets import ImageFolder
 from tqdm import tqdm
 
 from datasets.data_set import MyDataset
-from models.base_mode import ConvertV1, ConvertV2, BaseModel
+from models.base_mode import ConvertV1, Generator, BaseModel
 from train import process_image
 from utils.model_map import model_structure
 from utils.save_path import Path
@@ -99,7 +98,7 @@ def predict_live(self):
         device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     else:
         device = torch.device('cpu')
-    model = ConvertV2()
+    model = Generator()
     model_structure(model, (1, self.img_size[0], self.img_size[1]))
     checkpoint = torch.load(self.model)
     model.load_state_dict(checkpoint['net'])
