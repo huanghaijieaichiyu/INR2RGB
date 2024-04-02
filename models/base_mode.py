@@ -115,9 +115,9 @@ class ConvertV2(nn.Module):
         x8 = self.conv8(x7)
         x8 = self.conv9(x8)
         x9 = self.conv_out(x8)
-        x = self.tanh(x9)
+        x10 = self.tanh(x9)
 
-        x = x.view(-1, 2, 480, 480)
+        x = x10.view(-1, 2 * x.shape[1], x.shape[2], x.shape[3])
         x = torch.permute(x, (0, 2, 3, 1))
 
         return x
