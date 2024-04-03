@@ -32,7 +32,8 @@ def get_images_and_labels(dir_path):
 
 
 img_transform = transforms.Compose([
-    transforms.ToTensor()
+    transforms.ToTensor(),
+    transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))
 ])
 
 
