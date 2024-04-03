@@ -4,6 +4,7 @@ import os
 import cv2
 import numpy as np
 import torch
+import torchvision.transforms
 from PIL import Image
 from torch.utils import tensorboard
 from torch.utils.data import DataLoader
@@ -59,7 +60,7 @@ def predict(self):
                              num_workers=self.num_workers,
                              drop_last=True)
     pbar = tqdm(enumerate(test_loader), total=len(test_loader), bar_format='{l_bar}{bar:10}| {n_fmt}/{'
-                                                                'total_fmt} {elapsed}')
+                                                                           'total_fmt} {elapsed}')
     model.eval()
     torch.no_grad()
     i = 0
@@ -104,6 +105,7 @@ def predict_live(self):
     checkpoint = torch.load(self.model)
     model.load_state_dict(checkpoint['net'])
     model.to(device)
+    tensor_gray = torchvision.transforms.Grayscale()
     cap = cv2.VideoCapture(2)  # 读取图像
     model.eval()
     torch.no_grad()
@@ -113,23 +115,21 @@ def predict_live(self):
         rect, frame = cap.read()
         frame_pil = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
         frame_pil = cv2.resize(frame_pil, self.img_size)  # 是否需要resize取决于新图片格式与训练时的是否一致
-        frame_pil = Image.fromarray(frame_pil)
-        x, _, image_size = process_image(frame_pil)
 
-        x_trans = torch.tensor(x, dtype=torch.float).to(device)
-        # 训练前交换维度
-        x_trans = torch.permute(x_trans, (0, 3, 1, 2))
-        outputs = model(x_trans)
-        outputs = outputs.cpu().data.numpy()
-        outputs = outputs.astype(np.float32)
-        tmp = np.zeros((self.img_size[0], self.img_size[1], 3), dtype=np.float32)
-        print('x[0] is ', x[0])
-        print('outputs[0] is ', outputs[0])
-        tmp[:, :, 0] = x[0][:, :, 0]
-        tmp[:, :, 1:] = 128. * outputs[0]
-        tmp = cv2.resize(tmp, (640, 480))
+        frame_pil = torch.tensor(frame_pil, dtype=torch.float32).to(device)
+        frame_pil = torch.permute(frame_pil, (2, 0, 1))  # HWC 2 CHW
+        frame_pil = tensor_gray(frame_pil)
+        frame_pil = torch.unsqueeze(frame_pil, 0)
 
-        cv2.imshow('fake', cv2.cvtColor(tmp, cv2.COLOR_LAB2RGB))
+        fake = model(frame_pil / 255.)
+        fake = fake.permute(0, 2, 3, 1)  # CHW2HWC
+        fake = fake.detach().cpu().numpy()
+        fake = fake[0]  # 降维度
+        fake = fake.astype(np.float32)
+        # fake *= 255.
+        fake = cv2.resize(fake, (640, 480))  # 维度还没降下来
+
+        cv2.imshow('fake', fake)
 
         cv2.imshow('real', frame)
 

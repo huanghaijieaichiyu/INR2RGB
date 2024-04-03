@@ -12,6 +12,7 @@ from torch.cuda.amp import autocast
 from torch.utils import tensorboard
 from torch.utils.data import DataLoader
 from torchvision.transforms import transforms
+from skimage.metrics import structural_similarity
 from tqdm import tqdm
 
 from datasets.data_set import MyDataset
@@ -40,7 +41,7 @@ def train(self):
     os.makedirs(path)
     # 创建训练日志文件
     train_log = path + '/log.txt'
-    train_log_txt_formatter = '{time_str} [Epoch] {epoch:03d} [Loss] {loss_str}\n'
+    train_log_txt_formatter = '{time_str} [Epoch] {epoch:03d} [Loss] {loss_str} [SSIM] {ssim_int:04f}\n'
 
     args_dict = self.__dict__
     print(args_dict)
@@ -111,9 +112,11 @@ def train(self):
     loss = loss.to(device)
 
     img_transform = transforms.ToPILImage()
-
+    img_gray = transforms.Grayscale(1)
     # 储存loss 判断模型好坏
     Loss = [1.0]
+    SSIM = [-1.]
+
     # 此处开始训练
     mode.train()
     for epoch in range(self.epochs):
@@ -133,63 +136,69 @@ def train(self):
         pbar = tqdm(enumerate(train_loader), total=len(train_loader), bar_format='{l_bar}{bar:10}| {n_fmt}/{'
                                                                                  'total_fmt} {elapsed}')
         for data in pbar:
-            target, (img1, label) = data
+            target, (img, label) = data
 
-            img = img1[0]  # c=此步去除tensor中的bach-size 4维降3
-            img = img_transform(img)
-            x, y, image_size = process_image(img)
+            img = img.to(device)
+            gray = img_gray(img)
 
-            x = torch.tensor(x, dtype=torch.float32)
-            x = x.to(device)
-            y = torch.tensor(y, dtype=torch.float32)
-            y = y.to(device)
+            img /= 255.   # 归一化处理
+            gray /= 255.
 
             optimizer.zero_grad()
             with autocast(enabled=self.amp):
-                # 训练前交换维度
-                x_trans = torch.permute(x, (0, 3, 1, 2))
-                x_trans = mode(x_trans)
-                output = loss(x_trans, y)  # ---大坑--损失函数计算必须全是tensor
+                fake = mode(gray)
+                output = loss(fake, img)  # ---大坑--损失函数计算必须全是tensor
                 output.backward()
                 optimizer.step()
 
-            # 加入新的评价指标：PSNR,SSIM
-            max_pix = 255.
-            psnr = 10 * np.log10((max_pix ** 2) / output.item())
+            with torch.no_grad(): # 不需要梯度操作，节省显存空间
 
-            pbar.set_description("Epoch [%d/%d] ---------------  Batch [%d/%d] ---------------  loss: %.4f "
-                                 "---------------"
-                                 "PSNR: %.4f"
-                                 % (epoch + 1, self.epochs, target + 1, len(train_loader), output.item(), psnr))
+                # 加入新的评价指标：PSNR,SSIM
+                max_pix = 255.
+                psnr = 10 * np.log10((max_pix ** 2) / output.item())
 
-            checkpoint = {
-                'net': mode.state_dict(),
-                'optimizer': optimizer.state_dict(),
-                'epoch': epoch,
-                'loss': loss.state_dict()
-            }
-            log.add_scalar('total loss', output.item(), epoch)
-            log.add_scalar('PSNR', psnr)
+                ssim = structural_similarity(np.array(img_transform(fake[0]), dtype=np.float32),
+                                             np.array(img_transform(img[0]),
+                                                      dtype=np.float32), channel_axis=2, data_range=1)
 
-        # 目前没有其他可用的评估方法，暂时依靠loss来判断最佳模型
+                pbar.set_description("Epoch [%d/%d] ---------------  Batch [%d/%d] ---------------  loss: %.4f "
+                                     "---------------"
+                                     "PSNR: %.4f---------------SSIM: %.4f"
+                                     % (epoch + 1, self.epochs, target + 1, len(train_loader), output.item(), psnr, ssim))
 
-        if output.item() <= min(Loss):
+        checkpoint = {
+            'net': mode.state_dict(),
+            'optimizer': optimizer.state_dict(),
+            'epoch': epoch,
+            'loss': loss.state_dict()
+        }
+        log.add_scalar('total loss', output.item(), epoch)
+        log.add_scalar('PSNR', psnr, epoch)
+        log.add_scalar('SSIM', ssim, epoch)
+
+        # 依据损失和相似度来判断最佳模型
+
+        if output.item() <= min(Loss) and ssim >= max(SSIM):
             torch.save(checkpoint, path + '/best.pt')
 
         Loss.append(output.item())
+        SSIM.append(ssim)
         # 保持训练权重
         torch.save(checkpoint, path + '/last.pt')
 
         # 写入日志文件
         to_write = train_log_txt_formatter.format(time_str=time.strftime("%Y_%m_%d_%H:%M:%S"),
                                                   epoch=epoch + 1,
-                                                  loss_str=" ".join(["{:4f}".format(output.item())]))
+                                                  loss_str=" ".join(["{:4f}".format(output.item())]),
+                                                  ssim_int=ssim)
         with open(train_log, "a") as f:
             f.write(to_write)
 
             # 5 epochs for saving another model
         if (epoch + 1) % 10 == 0 and (epoch + 1) >= 10:
             torch.save(checkpoint, path + '/%d.pt' % (epoch + 1))
+        log.add_images('fake', fake)
+        log.add_images('real', img)
     log.close()
 
 
