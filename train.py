@@ -131,7 +131,7 @@ def train(self):
     g_loss = loss
     d_loss = loss
 
-    img_2gray = transforms.Grayscale(3)
+    img_2gray = transforms.Grayscale()
     img_pil = transforms.ToPILImage()
 
     # 储存loss 判断模型好坏

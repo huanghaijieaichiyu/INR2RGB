@@ -4,15 +4,13 @@ import os
 import cv2
 import numpy as np
 import torch
-from PIL import Image
 from torch.utils import tensorboard
 from torch.utils.data import DataLoader
 from torchvision import transforms
 from tqdm import tqdm
 
 from datasets.data_set import MyDataset
-from models.base_mode import ConvertV1, Generator, BaseModel
-from train import process_image
+from models.base_mode import ConvertV1, Generator
 from utils.model_map import model_structure
 from utils.save_path import Path
 
@@ -53,41 +51,31 @@ def predict(self):
     model.to(device)
     test_data = MyDataset(self.data)
     trans = transforms.ToPILImage()
+    img_2gray = transforms.Grayscale(3)
     test_loader = DataLoader(test_data,
                              batch_size=self.batch_size,
                              num_workers=self.num_workers,
                              drop_last=True)
     pbar = tqdm(enumerate(test_loader), total=len(test_loader), bar_format='{l_bar}{bar:10}| {n_fmt}/{'
-                                                                'total_fmt} {elapsed}')
+                                                                           'total_fmt} {elapsed}')
     model.eval()
     torch.no_grad()
     i = 0
     if not os.path.exists(os.path.join(path, 'predictions')):
         os.makedirs(os.path.join(path, 'predictions'))
     for data in pbar:
-        target, (img1, label) = data
-        img = img1[0]  # c=此步去除tensor中的bach-size 4维降3
-        img = trans(img)
-        x, y, image_size = process_image(img)
+        target, (img, label) = data
+        img = img.to(device)
+        img = img_2gray(img)
+        fake = model(img)
 
-        x = torch.tensor(x, dtype=torch.float32)
-        x = x.to(device)
-        # 训练前交换维度
-        x_trans = torch.permute(x, (0, 3, 1, 2))
-        outputs = model(x_trans)
-
-        x = x.cpu().data.numpy()
-        x = x.astype(np.float32)
-        outputs = outputs.cpu().data.numpy()
-        outputs = outputs.astype(np.float32)
-        tmp = np.zeros((self.img_size[0], self.img_size[1], 3), dtype=np.float32)
-        # 训练后复原再拼接
-        tmp[:, :, 0] = x[0][:, :, 0]
-        tmp[:, :, 1:] = 128 * outputs[0]
-        print('tmp is ', tmp)
+        fake = fake.detach().cpu().numpy()
+        fake = fake.astype(np.float32)
+        fake = fake[0]
+        print('fake is ', fake)
         if i > 10 and i % 10 == 0:  # 图片太多，十轮保存一次
             img_save_path = os.path.join(path, 'predictions', str(i) + '.jpg')
-            cv2.imwrite(img_save_path, cv2.cvtColor(tmp, cv2.COLOR_LAB2RGB))
+            cv2.imwrite(img_save_path, fake)
         i = i + 1
         pbar.set_description('Processed %d images' % i)
     pbar.close()
@@ -99,11 +87,12 @@ def predict_live(self):
     else:
         device = torch.device('cpu')
     model = Generator()
-    model_structure(model, (1, self.img_size[0], self.img_size[1]))
+    model_structure(model, (3, self.img_size[0], self.img_size[1]))
     checkpoint = torch.load(self.model)
     model.load_state_dict(checkpoint['net'])
     model.to(device)
     cap = cv2.VideoCapture(2)  # 读取图像
+    img_2gray = transforms.Grayscale(num_output_channels=3)
     model.eval()
     torch.no_grad()
     if not os.path.exists(os.path.join(self.save_path, 'predictions')):
@@ -112,23 +101,21 @@ def predict_live(self):
         rect, frame = cap.read()
         frame_pil = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
         frame_pil = cv2.resize(frame_pil, self.img_size)  # 是否需要resize取决于新图片格式与训练时的是否一致
-        frame_pil = Image.fromarray(frame_pil)
-        x, _, image_size = process_image(frame_pil)
 
-        x_trans = torch.tensor(x, dtype=torch.float).to(device)
-        # 训练前交换维度
-        x_trans = torch.permute(x_trans, (0, 3, 1, 2))
-        outputs = model(x_trans)
-        outputs = outputs.cpu().data.numpy()
-        outputs = outputs.astype(np.float32)
-        tmp = np.zeros((self.img_size[0], self.img_size[1], 3), dtype=np.float32)
-        print('x[0] is ', x[0])
-        print('outputs[0] is ', outputs[0])
-        tmp[:, :, 0] = x[0][:, :, 0]
-        tmp[:, :, 1:] = 128. * outputs[0]
-        tmp = cv2.resize(tmp, (640, 480))
+        frame_pil = torch.tensor(frame_pil, dtype=torch.float32).to(device)
+        frame_pil = torch.permute(frame_pil, (2, 0, 1))  # HWC 2 CHW
+        frame_pil = img_2gray(frame_pil)
+        frame_pil = torch.unsqueeze(frame_pil, 0)  # 提升维度
 
-        cv2.imshow('fake', cv2.cvtColor(tmp, cv2.COLOR_LAB2RGB))
+        fake = model(frame_pil/255.)
+        fake = fake.permute(0, 2, 3, 1)  # CHW2HWC
+        fake = fake.detach().cpu().numpy()
+        fake = fake[0]  # 降维度
+        fake = fake.astype(np.float32)
+        # fake *= 255.
+        fake = cv2.resize(fake, (640, 480))  # 维度还没降下来
+
+        cv2.imshow('fake', fake)
 
         cv2.imshow('real', frame)
 
