@@ -121,7 +121,7 @@ def train(self):
     elif self.loss == 'SoftTargetCrossEntropy':
         loss = SoftTargetCrossEntropy()
     elif self.loss == 'bce':
-        loss = nn.BCEWithLogitsLoss()
+        loss = BCEBlurWithLogitsLoss()
     else:
         print('no such Loss Function!')
         raise NotImplementedError
@@ -177,8 +177,8 @@ def train(self):
             img_gray = img_2gray(img)
             img_gray = img_gray.to(device)
 
-            # 开始训练
-
+            img *= 1/255.   # 不能调用dataloader自带的归一化函数，否则会破坏图像原有色彩分布
+            img_gray *= 1/255.
             with autocast(enabled=self.amp):
                 # 先训练判别模型
                 d_optimizer.zero_grad()
@@ -206,21 +206,22 @@ def train(self):
             with torch.no_grad():
                 d_epoch_loss += d_output
                 g_epoch_loss += g_output
-
+                total_loss = (d_epoch_loss + g_epoch_loss) / len(train_loader)
                 # 加入新的评价指标：PSNR,SSIM
                 max_pix = 255.
                 psn = 10 * np.log10((max_pix ** 2) / g_output.item())
-                ssim = structural_similarity(np.array(img_pil(img[0]), dtype=np.float32),
-                                             np.array(img_pil(fake[0]), dtype=np.float32), win_size=None,
+                ssim = structural_similarity(np.array(img_pil(fake[0])),
+                                             np.array(img_pil(img[0])),
+                                             win_size=None,
                                              gradient=False,
-                                             data_range=1,
-                                             channel_axis=2, multichannel=False, gaussian_weights=False, full=False)
+                                             channel_axis=2,
+                                             multichannel=True, gaussian_weights=False, full=False)
 
                 pbar.set_description("Epoch [%d/%d] ----------- Batch [%d/%d] -----------  Generator loss: %.4f "
                                      "-----------  Discriminator loss: %.4f-----------"
-                                     "PSN: %.4f----------- SSIM: %.4f"
+                                     "PSN: %.4f----------- Total loss: %.4f ------------ SSIM: %.4f"
                                      % (epoch + 1, self.epochs, target + 1, len(train_loader), g_output.item(),
-                                        d_output.item(), psn, ssim))
+                                        d_output.item(), psn, total_loss, ssim))
 
         g_checkpoint = {
             'net': generator.state_dict(),
@@ -261,9 +262,10 @@ def train(self):
         if (epoch + 1) % 10 == 0 and (epoch + 1) >= 10:
             torch.save(g_checkpoint, path + '/generator/%d.pt' % (epoch + 1))
             torch.save(d_checkpoint, path + '/discriminator/%d.pt' % (epoch + 1))
-        # 可视化训练
-        log.add_images('real', img, epoch + 1)
-        log.add_images('fake', fake, epoch + 1)
+        # 可视化训练结果
+        log.add_image('real', 255. * img[0])
+        log.add_image('gray', 255. * img_gray[0])
+        log.add_image('fake', 255. * fake[0])
 
     log.close()
 
