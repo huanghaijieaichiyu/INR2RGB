@@ -95,7 +95,7 @@ def train(self):
     train_loader = DataLoader(train_data,
                               batch_size=self.batch_size,
                               num_workers=self.num_workers,
-                              drop_last=True)
+                              drop_last=False)
     assert len(train_loader) != 0, 'no data loaded'
 
     if self.optimizer == 'AdamW' or self.optimizer == 'Adam':
@@ -215,9 +215,6 @@ def train(self):
                                  % (epoch + 1, self.epochs, target + 1, len(train_loader), g_output.item(),
                                     d_output.item(), psn, ssim))
 
-            log.add_images('real', img, epoch*10)
-            log.add_images('fake', fake, epoch*10)
-
             g_checkpoint = {
                 'net': generator.state_dict(),
                 'optimizer': g_optimizer.state_dict(),
@@ -257,6 +254,11 @@ def train(self):
         if (epoch + 1) % 10 == 0 and (epoch + 1) >= 10:
             torch.save(g_checkpoint, path + '/generator/%d.pt' % (epoch + 1))
             torch.save(d_checkpoint, path + '/discriminator/%d.pt' % (epoch + 1))
+        # 可视化训练
+        log.add_image('real', img[0], epoch + 1)
+        log.add_image('fake', fake[0], epoch + 1)
+
+
     log.close()
 
 
