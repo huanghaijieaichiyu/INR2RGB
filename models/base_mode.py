@@ -117,7 +117,7 @@ class ConvertV2(nn.Module):
         x9 = self.conv_out(x8)
         x10 = self.tanh(x9)
 
-        x = x10.view(-1, 1, x.shape[0], x.shape[1])
+        x = x10.view(-1, 1, x.shape[2], x.shape[3])
 
         return x
 
@@ -126,30 +126,33 @@ class Generator(nn.Module):
 
     def __init__(self) -> None:
         super(Generator, self).__init__()
-        self.conv1 = nn.Sequential(
-            Conv(3, 8, 3, 2),
-            nn.LeakyReLU(),
-            Conv(8, 16, 3),
-            nn.Upsample(scale_factor=2),
-            nn.LeakyReLU(),
-            Conv(16, 32, 5, 2),
-            nn.LeakyReLU(),
-            Conv(32, 32, 3),
-            nn.Upsample(scale_factor=2),
-            nn.LeakyReLU(),
-            Conv(32, 16, 3, 2),
-            nn.LeakyReLU(),
-            Conv(16, 8, 3),
-            nn.Upsample(scale_factor=2),
-            nn.LeakyReLU(),
-            Conv(8, 3, 3, act=False),
-            nn.Tanh()  # 预测值映射
-        )
+        self.conv_in = Conv(1, 8, 3)
+        self.conv2 = EMA(8)
+        self.conv3 = C2f(8, 16, shortcut=True)
+        self.conv4 = C2f(16, 32)
+        self.conv5 = SPPELAN(32, 32, 16)
+        self.conv6 = C2f(48, 16)
+        self.conv7 = C2f(16, 8, shortcut=True)
+        self.conv8 = Conv(16, 8, 3)
+        self.conv_out = Conv(8, 3, 3, act=False)
+        self.tanh = nn.Tanh()
+        self.concat = Concat()
 
     def forward(self, x):
+        x1 = self.conv_in(x)
+        x2 = self.conv2(x1)
+        x3 = self.conv3(x2)
+        x4 = self.conv4(x3)
+        x5 = self.conv5(x4)
+        x5 = self.concat([x3, x5])
+        x6 = self.conv6(x5)
+        x7 = self.conv7(x6)
+        x7 = self.concat([x2, x7])
+        x8 = self.conv8(x7)
+        x9 = self.conv_out(x8)
+        x10 = self.tanh(x9)
 
-        x = self.conv1(x)
-        x = x.view(-1, x.shape[1], x.shape[2], x.shape[3])
+        x = x10.view(-1, 3, x.shape[2], x.shape[3])
 
         return x
 

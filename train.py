@@ -91,11 +91,15 @@ def train(self):
         1, 3, self.img_size[0], self.img_size[1]))
     log.add_graph(discriminator, torch.randn(
         1, 3, self.img_size[0], self.img_size[1]))
+    log.add_graph(generator, torch.randn(
+        1, 1, self.img_size[0], self.img_size[1]))
     print('Drawing dnoe!')
     print('-' * 100)
     print('Generator model info: \n')
     g_params, g_macs = model_structure(
         generator, img_size=(3, self.img_size[0], self.img_size[1]))
+    g_params, g_macs = model_structure(
+        generator, img_size=(1, self.img_size[0], self.img_size[1]))
     print('Discriminator model info: \n')
     d_params, d_macs = model_structure(
         discriminator, img_size=(3, self.img_size[0], self.img_size[1]))
@@ -167,21 +171,18 @@ def train(self):
         raise NotImplementedError
     loss = loss.to(device)
 
-    g_loss = loss
-    d_loss = loss
-
     img_2gray = transforms.Grayscale()
     img_pil = transforms.ToPILImage()
 
     # 储存loss 判断模型好坏
-    gLoss = [9.]
-    dLoss = [9.]
+    SSIM = [-1.]
 
     # 此处开始训练
     generator.train()
     discriminator.train()
     for epoch in range(self.epochs):
-
+        d_epoch_loss = 0
+        g_epoch_loss = 0
         # 断点训练参数设置
         if self.resume is not None:
             if isinstance(self.resume, str):
@@ -193,13 +194,13 @@ def train(self):
                 generator.load_state_dict(g_checkpoint['net'])
                 g_optimizer.load_state_dict(g_checkpoint['optimizer'])
                 g_epoch = g_checkpoint['epoch']  # 设置开始的epoch
-                g_loss.load_state_dict = g_checkpoint['loss']
+                loss.load_state_dict = g_checkpoint['loss']
 
                 d_checkpoint = torch.load(d_path_checkpoint)  # 加载断点
                 discriminator.load_state_dict(d_checkpoint['net'])
                 d_optimizer.load_state_dict(d_checkpoint['optimizer'])
                 d_epoch = d_checkpoint['epoch']  # 设置开始的epoch
-                d_loss.load_state_dict = d_checkpoint['loss']
+                loss.load_state_dict = d_checkpoint['loss']
 
                 if g_epoch != d_epoch:
                     print('given models are mismatched')
@@ -214,7 +215,6 @@ def train(self):
                                                                                  'total_fmt} {elapsed}')
         for data in pbar:
             target, (img, label) = data
-            img /= 255.   # 归一处理
             # print(img)
             # 对输入图像进行处理
             img = img.to(device)
@@ -224,9 +224,29 @@ def train(self):
             # 开始训练
 
             with autocast(enabled=self.amp):
-                g_optimizer.zero_grad()
+                # 先训练判别模型
+                d_optimizer.zero_grad()
+                real_outputs = discriminator(img)
                 fake = generator(img_gray)
-                g_output = g_loss(fake, img)  # ---大坑--损失函数计算必须全是tensor
+
+                fake_outputs = discriminator(fake.detach())
+
+                d_real_output = loss(real_outputs, torch.ones_like(
+                    real_outputs))  # D 希望 real_loss 为 1
+                d_real_output.backward()
+
+                d_fake_output = loss(fake_outputs, torch.zeros_like(
+                    fake_outputs))  # D 希望 fake_loss 为 0
+                d_fake_output.backward()
+
+                d_output = d_real_output + d_fake_output
+                d_optimizer.step()
+
+                # 训练生成器
+                g_optimizer.zero_grad()
+                fake_inputs = discriminator(fake.detach())
+                g_output = loss(fake_inputs, torch.ones_like(
+                    fake_inputs))  # G 希望 fake_loss 为 1
                 g_output.backward()
                 g_optimizer.step()
 
@@ -238,63 +258,48 @@ def train(self):
                 d_output = d_loss(fake_outputs, real_outputs)
                 d_output.backward()
                 d_optimizer.step()
+            with torch.no_grad():
+                d_epoch_loss += d_output
+                g_epoch_loss += g_output
 
                 # 加入新的评价指标：PSNR,SSIM
-            max_pix = 255.
-            psn = 10 * np.log10((max_pix ** 2) / g_output.item())
-            ssim = structural_similarity(np.array(img_pil(img[0]), dtype=np.float32),
-                                         np.array(img_pil(fake[0]), dtype=np.float32), win_size=None,
-                                         gradient=False,
-                                         data_range=1,
-                                         channel_axis=2, multichannel=False, gaussian_weights=False, full=False)
+                max_pix = 255.
+                psn = 10 * np.log10((max_pix ** 2) / g_output.item())
+                ssim = structural_similarity(np.array(img_pil(img[0]), dtype=np.float32),
+                                             np.array(img_pil(fake[0]), dtype=np.float32), win_size=None,
+                                             gradient=False,
+                                             data_range=1,
+                                             channel_axis=2, multichannel=False, gaussian_weights=False, full=False)
 
-            pbar.set_description("Epoch [%d/%d] ----------- Batch [%d/%d] -----------  Generator loss: %.4f "
-                                 "-----------  Discriminator loss: %.4f-----------"
-                                 "PSN: %.4f----------- SSIM: %.4f"
-                                 % (epoch + 1, self.epochs, target + 1, len(train_loader), g_output.item(),
-                                    d_output.item(), psn, ssim))
+                pbar.set_description("Epoch [%d/%d] ----------- Batch [%d/%d] -----------  Generator loss: %.4f "
+                                     "-----------  Discriminator loss: %.4f-----------"
+                                     "PSN: %.4f----------- SSIM: %.4f"
+                                     % (epoch + 1, self.epochs, target + 1, len(train_loader), g_output.item(),
+                                        d_output.item(), psn, ssim))
 
-            g_checkpoint = {
-                'net': generator.state_dict(),
-                'optimizer': g_optimizer.state_dict(),
-                'epoch': epoch,
-                'loss': g_loss.state_dict()
-            }
-            d_checkpoint = {
-                'net': discriminator.state_dict(),
-                'optimizer': d_optimizer.state_dict(),
-                'epoch': epoch,
-                'loss': d_loss.state_dict()
-            }
-            log.add_scalar('generator total loss', g_output.item(), epoch)
-            log.add_scalar('discriminator total loss', d_output.item(), epoch)
-            log.add_scalar('generator_PSNR', psn, epoch)
-
-
->>>>>> > e08c197(updates)
-
-        checkpoint = {
-            'net': mode.state_dict(),
-            'optimizer': optimizer.state_dict(),
+        g_checkpoint = {
+            'net': generator.state_dict(),
+            'optimizer': g_optimizer.state_dict(),
             'epoch': epoch,
             'loss': loss.state_dict()
         }
-        log.add_scalar('total loss', output.item(), epoch)
+        d_checkpoint = {
+            'net': discriminator.state_dict(),
+            'optimizer': d_optimizer.state_dict(),
+            'epoch': epoch,
+            'loss': loss.state_dict()
+        }
+        log.add_scalar('generator total loss', g_output.item(), epoch)
+        log.add_scalar('discriminator total loss', d_output.item(), epoch)
+        log.add_scalar('generator_PSNR', psn, epoch)
+        log.add_scalar('SSIM', ssim, epoch)
 
-<< << << < HEAD
-        # 依据损失和相似度来判断最佳模型
+        # 保持最佳模型
 
-        if output.item() <= min(Loss) and psn > max(PSN):
-            torch.save(checkpoint, path + '/best.pt')
-        PSN.append(psn)
-        Loss.append(output.item())
-== == == =
-        if g_output.item() <= min(gLoss):
+        if g_output.item() > max(SSIM):
             torch.save(g_checkpoint, path + '/generator/best.pt')
+        SSIM.append(ssim)
 
-        gLoss.append(g_output.item())
-        dLoss.append(d_output.item())
->>>>>> > e08c197(updates)
         # 保持训练权重
         torch.save(g_checkpoint, path + '/generator/last.pt')
         torch.save(d_checkpoint, path + '/discriminator/last.pt')
@@ -310,17 +315,12 @@ def train(self):
 
             # 5 epochs for saving another model
         if (epoch + 1) % 10 == 0 and (epoch + 1) >= 10:
-<< << << < HEAD
-            torch.save(checkpoint, path + '/%d.pt' % (epoch + 1))
-        log.add_images('fake', PSlab2rgb(fake_tensor), epoch)
-        log.add_images('real', img, epoch)
-=======
             torch.save(g_checkpoint, path + '/generator/%d.pt' % (epoch + 1))
-            torch.save(d_checkpoint, path + '/discriminator/%d.pt' % (epoch + 1))
+            torch.save(d_checkpoint, path + '/discriminator/%d.pt' %
+                       (epoch + 1))
         # 可视化训练
-        log.add_image('real', img[0], epoch + 1)
-        log.add_image('fake', fake[0], epoch + 1)
-
+        log.add_images('real', img, epoch + 1)
+        log.add_images('fake', fake, epoch + 1)
 
     log.close()
 
@@ -341,7 +341,9 @@ def parse_args():
                         help="number of data loading workers, if in windows, must be 0"
                         )
     parser.add_argument("--seed", type=int, default=1999, help="random seed")
-<<<<<<< HEAD
+
+
+<< << << < HEAD
     parser.add_argument("--resume", type=str, default='',
                         help="path to latest checkpoint,yes or no")
     parser.add_argument("--amp", type=bool, default=True,
@@ -349,12 +351,14 @@ def parse_args():
     parser.add_argument("--loss", type=str, default='mse',
                         choices=['BCEBlurWithLogitsLoss', 'mse', 'bce',
                                  'SoftTargetCrossEntropy'],
-=======
-    parser.add_argument("--resume", type=tuple, default=[], help="path to two latest checkpoint,yes or no")
-    parser.add_argument("--amp", type=bool, default=True, help="Whether to use amp in mixed precision")
+== == == =
+    parser.add_argument("--resume", type=tuple, default=[],
+                        help="path to two latest checkpoint,yes or no")
+    parser.add_argument("--amp", type=bool, default=True,
+                        help="Whether to use amp in mixed precision")
     parser.add_argument("--loss", type=str, default='mse', choices=['BCEBlurWithLogitsLoss', 'mse', 'bce',
                                                                     'SoftTargetCrossEntropy'],
->>>>>>> e08c197 (updates)
+>>>>>> > e08c197(updates)
                         help="loss function")
     parser.add_argument("--lr", type=float, default=1e-3,
                         help="learning rate, for adam is 1-e3, SGD is 1-e2")  # 学习率
@@ -378,11 +382,11 @@ def parse_args():
                                                                       "training(not working in interactive mode)")
     parser.add_argument("--deterministic", type=bool, default=True,
                         help="whether to use deterministic initialization")
-    arges = parser.parse_args()
+    arges=parser.parse_args()
 
     return arges
 
 
 if __name__ == '__main__':
-    opt = parse_args()
+    opt=parse_args()
     train(opt)
