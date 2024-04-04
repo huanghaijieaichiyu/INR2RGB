@@ -189,8 +189,8 @@ def train(self):
             # 5 epochs for saving another model
         if (epoch + 1) % 10 == 0 and (epoch + 1) >= 10:
             torch.save(checkpoint, path + '/%d.pt' % (epoch + 1))
-        log.add_images('fake', fake)
-        log.add_images('real', img)
+        log.add_images('fake', fake, epoch)
+        log.add_images('real', img, epoch)
     log.close()
 
 
