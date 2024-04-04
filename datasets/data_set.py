@@ -32,7 +32,8 @@ def get_images_and_labels(dir_path):
 
 
 img_transform = transforms.Compose([
-    transforms.ToTensor()
+    transforms.ToTensor(),
+    transforms.Normalize((0.471, 0.448, 0.408), (0.234, 0.239, 0.242))  # coco标准值
 ])
 
 

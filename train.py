@@ -176,7 +176,7 @@ def train(self):
     img_pil = transforms.ToPILImage()
 
     # 储存loss 判断模型好坏
-    SSIM = [-1.]
+    loss_all = [99.]
 
     # 此处开始训练
     generator.train()
@@ -255,7 +255,7 @@ def train(self):
             d_epoch_loss += d_output
             g_epoch_loss += g_output
             total_loss = (d_epoch_loss + g_epoch_loss) / len(train_loader)
-            # 加入新的评价指标：PSNR,SSIM
+            '''# 加入新的评价指标：PSNR,SSIM
             max_pix = 255.
             psn = 10 * np.log10((max_pix ** 2) / g_output.item())
             ssim = structural_similarity(np.array(img_pil(fake[0])),
@@ -263,13 +263,13 @@ def train(self):
                                          win_size=None,
                                          gradient=False,
                                          channel_axis=2,
-                                         multichannel=True, gaussian_weights=False, full=False)
+                                         multichannel=True, gaussian_weights=False, full=False)'''
 
             pbar.set_description("Epoch [%d/%d] ----------- Batch [%d/%d] -----------  Generator loss: %.4f "
                                  "-----------  Discriminator loss: %.4f-----------"
-                                 "PSN: %.4f----------- Total loss: %.4f ------------ SSIM: %.4f"
+                                 "Total loss: %.4f"
                                  % (epoch + 1, self.epochs, target + 1, len(train_loader), g_output.item(),
-                                    d_output.item(), psn, total_loss, ssim))
+                                    d_output.item(), total_loss))
 
         g_checkpoint = {
             'net': generator.state_dict(),
@@ -285,14 +285,14 @@ def train(self):
         }
         log.add_scalar('generator total loss', g_output.item(), epoch)
         log.add_scalar('discriminator total loss', d_output.item(), epoch)
-        log.add_scalar('generator_PSNR', psn, epoch)
-        log.add_scalar('SSIM', ssim, epoch)
+        ''' log.add_scalar('generator_PSNR', psn, epoch)
+        log.add_scalar('SSIM', ssim, epoch)'''
 
         # 保持最佳模型
 
-        if g_output.item() > max(SSIM):
+        if g_output.item() < min(loss_all):
             torch.save(g_checkpoint, path + '/generator/best.pt')
-        SSIM.append(ssim)
+        loss_all.append(g_output.item())
 
         # 保持训练权重
         torch.save(g_checkpoint, path + '/generator/last.pt')
