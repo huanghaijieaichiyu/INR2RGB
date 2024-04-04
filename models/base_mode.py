@@ -88,7 +88,7 @@ class ConvertV2(nn.Module):
 
     def __init__(self) -> None:
         super(ConvertV2, self).__init__()
-        self.conv_in = Conv(1, 8, 3)
+        self.conv_in = Conv(1, 8)
         self.conv1 = C2f(8, 8)
         self.conv2 = EMA(8)
         self.conv3 = C2f(8, 16, shortcut=True)
@@ -96,9 +96,9 @@ class ConvertV2(nn.Module):
         self.conv5 = SPPELAN(32, 32, 16)
         self.conv6 = C2f(48, 16)
         self.conv7 = C2f(16, 8, shortcut=True)
-        self.conv8 = Conv(16, 8, 3)
+        self.conv8 = Conv(16, 8)
         self.conv9 = C2f(8, 8)
-        self.conv_out = Conv(8, 3, 3, act=False)
+        self.conv_out = Conv(8, 3, act=False)
         self.tanh = nn.Tanh()
         self.concat = Concat()
 

@@ -32,7 +32,8 @@ def get_images_and_labels(dir_path):
 
 
 img_transform = transforms.Compose([
-    transforms.ToTensor()
+    transforms.ToTensor(),
+    transforms.Normalize((0.471, 0.448, 0.408), (0.234, 0.239, 0.242))
 ])
 
 
@@ -61,6 +62,6 @@ class MyDataset(Dataset):
         if k == 27:
             cv2.destroyAllWindows()
         """
-        img = np.array(img, np.float32)
+        img = np.array(img)
         img = self.transform(img)
         return img, label
