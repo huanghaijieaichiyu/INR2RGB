@@ -52,9 +52,10 @@ class MyDataset(Dataset):
     def __getitem__(self, index):
         img_path = self.images[index]
         label = self.labels[index]
-        img = cv2.imread(img_path, cv2.COLOR_BGR2RGB)
+        img = cv2.imread(img_path)
         # img = cv2.normalize(img, None, 0, 255, cv2.NORM_MINMAX)
         img = cv2.resize(img, self.img_size)
+        img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
         """
         cv2.imshow('img', img)
         k = cv2.waitKey(0)
