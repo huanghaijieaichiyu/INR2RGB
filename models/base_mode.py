@@ -89,7 +89,6 @@ class ConvertV2(nn.Module):
     def __init__(self) -> None:
         super(ConvertV2, self).__init__()
         self.conv_in = Conv(1, 8)
-        self.conv1 = C2f(8, 8)
         self.conv2 = EMA(8)
         self.conv3 = C2f(8, 16, shortcut=True)
         self.conv4 = C2f(16, 32)
