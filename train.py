@@ -172,7 +172,7 @@ def train(self):
                                                                                  'total_fmt} {elapsed}')
         for data in pbar:
             target, (img, label) = data
-            img *= 1/255.
+            img *= 1 / 255.
             # print(img)
             # 对输入图像进行处理
             img = img.to(device)
@@ -180,11 +180,11 @@ def train(self):
             img_gray = img_gray.to(device)
 
             with autocast(enabled=self.amp):
-                ############## 先训练判别模型############
-                d_optimizer.zero_grad()
                 real_outputs = discriminator(img)
                 fake = generator(img_gray)
 
+                '''---------------先训练判别模型---------------'''
+                d_optimizer.zero_grad()
                 fake_outputs = discriminator(fake.detach())
 
                 d_real_output = loss(real_outputs, torch.ones_like(real_outputs))  # D 希望 real_loss 为 1
@@ -195,7 +195,7 @@ def train(self):
                 d_output.backward()
                 d_optimizer.step()
 
-                ################ 训练生成器 ##################
+                '''--------------- 训练生成器 ----------------'''
 
                 g_optimizer.zero_grad()
                 fake_inputs = discriminator(fake.detach())
@@ -264,9 +264,9 @@ def train(self):
             torch.save(g_checkpoint, path + '/generator/%d.pt' % (epoch + 1))
             torch.save(d_checkpoint, path + '/discriminator/%d.pt' % (epoch + 1))
         # 可视化训练结果
-        log.add_images('real', 255. * img)
-        log.add_images('gray', 255. * img_gray)
-        log.add_images('fake', 255. * fake)
+        log.add_images('real', 255. * img, epoch+1)
+        log.add_images('gray', 255. * img_gray, epoch+1)
+        log.add_images('fake', 255. * fake, epoch+1)
 
     log.close()
 
