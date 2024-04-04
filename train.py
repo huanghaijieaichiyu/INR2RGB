@@ -126,6 +126,7 @@ def train(self):
         print('no such Loss Function!')
         raise NotImplementedError
     loss = loss.to(device)
+    l1 = nn.L1Loss()
 
     img_2gray = transforms.Grayscale()
     img_pil = transforms.ToPILImage()
@@ -171,16 +172,15 @@ def train(self):
                                                                                  'total_fmt} {elapsed}')
         for data in pbar:
             target, (img, label) = data
+            img *= 1/255.
             # print(img)
             # 对输入图像进行处理
             img = img.to(device)
             img_gray = img_2gray(img)
             img_gray = img_gray.to(device)
 
-            img *= 1/255.   # 不能调用dataloader自带的归一化函数，否则会破坏图像原有色彩分布
-            img_gray *= 1/255.
             with autocast(enabled=self.amp):
-                # 先训练判别模型
+                ############## 先训练判别模型############
                 d_optimizer.zero_grad()
                 real_outputs = discriminator(img)
                 fake = generator(img_gray)
@@ -188,28 +188,29 @@ def train(self):
                 fake_outputs = discriminator(fake.detach())
 
                 d_real_output = loss(real_outputs, torch.ones_like(real_outputs))  # D 希望 real_loss 为 1
-                d_real_output.backward()
 
                 d_fake_output = loss(fake_outputs, torch.zeros_like(fake_outputs))  # D 希望 fake_loss 为 0
-                d_fake_output.backward()
 
-                d_output = d_real_output + d_fake_output
+                d_output = (d_real_output + d_fake_output) * 0.5
+                d_output.backward()
                 d_optimizer.step()
 
-                # 训练生成器
+                ################ 训练生成器 ##################
+
                 g_optimizer.zero_grad()
                 fake_inputs = discriminator(fake.detach())
-                g_output = loss(fake_inputs, torch.ones_like(fake_inputs))  # G 希望 fake_loss 为 1
+                g_dis = loss(fake_inputs, torch.ones_like(fake_inputs))  # G 希望 fake_loss 为 1
+                g_l1 = l1(fake.detach(), img)  # 加上生成损失
+                g_output = g_dis + g_l1 * 100
                 g_output.backward()
                 g_optimizer.step()
-
 
             d_epoch_loss += d_output
             g_epoch_loss += g_output
             total_loss = (d_epoch_loss + g_epoch_loss) / len(train_loader)
             # 加入新的评价指标：PSNR,SSIM
             max_pix = 255.
-            psn = 10 * np.log10((max_pix ** 2) / g_output.item())
+            psn = 10 * np.log10((max_pix ** 2) / g_dis.item())
             ssim = structural_similarity(np.array(img_pil(fake[0])),
                                          np.array(img_pil(img[0])),
                                          win_size=None,
@@ -263,9 +264,9 @@ def train(self):
             torch.save(g_checkpoint, path + '/generator/%d.pt' % (epoch + 1))
             torch.save(d_checkpoint, path + '/discriminator/%d.pt' % (epoch + 1))
         # 可视化训练结果
-        log.add_image('real', img[0])
-        log.add_image('gray', img_gray[0])
-        log.add_image('fake', fake[0])
+        log.add_images('real', 255. * img)
+        log.add_images('gray', 255. * img_gray)
+        log.add_images('fake', 255. * fake)
 
     log.close()
 

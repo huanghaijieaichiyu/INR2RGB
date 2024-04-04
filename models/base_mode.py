@@ -128,12 +128,11 @@ class Generator(nn.Module):
         super(Generator, self).__init__()
         self.conv_in = Conv(1, 8, 3)
         self.conv2 = EMA(8)
-        self.conv3 = C2f(8, 16, shortcut=True)
-        self.conv4 = C2f(16, 32)
-        self.conv5 = SPPELAN(32, 32, 16)
-        self.conv6 = C2f(48, 16)
-        self.conv7 = C2f(16, 8, shortcut=True)
-        self.conv8 = Conv(16, 8, 3)
+        self.conv3 = Conv(8, 64, 3)
+        self.conv4 = Conv(64, 128)
+        self.conv5 = Conv(128, 64)
+        self.conv6 = Conv(128, 32, 3)
+        self.conv7 = Conv(32, 8, 3)
         self.conv_out = Conv(8, 3, 3, act=False)
         self.tanh = nn.Tanh()
         self.concat = Concat()
@@ -147,12 +146,10 @@ class Generator(nn.Module):
         x5 = self.concat([x3, x5])
         x6 = self.conv6(x5)
         x7 = self.conv7(x6)
-        x7 = self.concat([x2, x7])
-        x8 = self.conv8(x7)
-        x9 = self.conv_out(x8)
-        x10 = self.tanh(x9)
+        x8 = self.conv_out(x7)
+        x9 = self.tanh(x8)
 
-        x = x10.view(-1, 3, x.shape[2], x.shape[3])
+        x = x9.view(-1, 3, x.shape[2], x.shape[3])
 
         return x
 
