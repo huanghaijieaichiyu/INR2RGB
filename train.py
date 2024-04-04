@@ -170,6 +170,7 @@ def train(self):
         print('no such Loss Function!')
         raise NotImplementedError
     loss = loss.to(device)
+    l1 = nn.L1Loss()
 
     img_2gray = transforms.Grayscale()
     img_pil = transforms.ToPILImage()
@@ -215,16 +216,15 @@ def train(self):
                                                                                  'total_fmt} {elapsed}')
         for data in pbar:
             target, (img, label) = data
+            img *= 1/255.
             # print(img)
             # 对输入图像进行处理
             img = img.to(device)
             img_gray = img_2gray(img)
             img_gray = img_gray.to(device)
 
-            img *= 1/255.   # 不能调用dataloader自带的归一化函数，否则会破坏图像原有色彩分布
-            img_gray *= 1/255.
             with autocast(enabled=self.amp):
-                # 先训练判别模型
+                ############## 先训练判别模型############
                 d_optimizer.zero_grad()
                 real_outputs = discriminator(img)
                 fake = generator(img_gray)
@@ -239,10 +239,12 @@ def train(self):
                     fake_outputs))  # D 希望 fake_loss 为 0
                 d_fake_output.backward()
 
-                d_output = d_real_output + d_fake_output
+                d_output = (d_real_output + d_fake_output) * 0.5
+                d_output.backward()
                 d_optimizer.step()
 
-                # 训练生成器
+                ################ 训练生成器 ##################
+
                 g_optimizer.zero_grad()
                 fake_inputs = discriminator(fake.detach())
                 g_output = loss(fake_inputs, torch.ones_like(
@@ -250,19 +252,18 @@ def train(self):
                 g_output.backward()
                 g_optimizer.step()
 
-            with torch.no_grad():
-                d_epoch_loss += d_output
-                g_epoch_loss += g_output
-                total_loss = (d_epoch_loss + g_epoch_loss) / len(train_loader)
-                # 加入新的评价指标：PSNR,SSIM
-                max_pix = 255.
-                psn = 10 * np.log10((max_pix ** 2) / g_output.item())
-                ssim = structural_similarity(np.array(img_pil(fake[0])),
-                                             np.array(img_pil(img[0])),
-                                             win_size=None,
-                                             gradient=False,
-                                             channel_axis=2,
-                                             multichannel=True, gaussian_weights=False, full=False)
+            d_epoch_loss += d_output
+            g_epoch_loss += g_output
+            total_loss = (d_epoch_loss + g_epoch_loss) / len(train_loader)
+            # 加入新的评价指标：PSNR,SSIM
+            max_pix = 255.
+            psn = 10 * np.log10((max_pix ** 2) / g_output.item())
+            ssim = structural_similarity(np.array(img_pil(fake[0])),
+                                         np.array(img_pil(img[0])),
+                                         win_size=None,
+                                         gradient=False,
+                                         channel_axis=2,
+                                         multichannel=True, gaussian_weights=False, full=False)
 
             pbar.set_description("Epoch [%d/%d] ----------- Batch [%d/%d] -----------  Generator loss: %.4f "
                                  "-----------  Discriminator loss: %.4f-----------"
@@ -312,9 +313,9 @@ def train(self):
             torch.save(d_checkpoint, path + '/discriminator/%d.pt' %
                        (epoch + 1))
         # 可视化训练结果
-        log.add_image('real', 255. * img[0])
-        log.add_image('gray', 255. * img_gray[0])
-        log.add_image('fake', 255. * fake[0])
+        log.add_image('real', img[0])
+        log.add_image('gray', img_gray[0])
+        log.add_image('fake', fake[0])
 
     log.close()
 
@@ -345,7 +346,7 @@ def parse_args():
     parser.add_argument("--loss", type=str, default='mse',
                         choices=['BCEBlurWithLogitsLoss', 'mse', 'bce',
                                  'SoftTargetCrossEntropy'],
-== == == =
+== == ===
     parser.add_argument("--resume", type=tuple, default=[],
                         help="path to two latest checkpoint,yes or no")
     parser.add_argument("--amp", type=bool, default=True,
