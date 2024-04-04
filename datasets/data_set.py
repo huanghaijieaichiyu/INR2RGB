@@ -33,7 +33,7 @@ def get_images_and_labels(dir_path):
 
 img_transform = transforms.Compose([
     transforms.ToTensor(),
-    transforms.Normalize((0.471, 0.448, 0.408), (0.234, 0.239, 0.242))  # coco标准值
+    # transforms.Normalize((0.471, 0.448, 0.408), (0.234, 0.239, 0.242))  # coco标准值
 ])
 
 
@@ -52,8 +52,8 @@ class MyDataset(Dataset):
     def __getitem__(self, index):
         img_path = self.images[index]
         label = self.labels[index]
-        img = cv2.imread(img_path)
-        img = cv2.normalize(img, None, 0, 255, cv2.NORM_MINMAX)
+        img = cv2.imread(img_path, cv2.COLOR_BGR2RGB)
+        # img = cv2.normalize(img, None, 0, 255, cv2.NORM_MINMAX)
         img = cv2.resize(img, self.img_size)
         """
         cv2.imshow('img', img)
@@ -61,6 +61,6 @@ class MyDataset(Dataset):
         if k == 27:
             cv2.destroyAllWindows()
         """
-        img = np.array(img, np.float32)
+        img = np.array(img)
         img = self.transform(img)
         return img, label

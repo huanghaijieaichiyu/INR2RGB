@@ -126,7 +126,7 @@ def train(self):
         print('no such Loss Function!')
         raise NotImplementedError
     loss = loss.to(device)
-    l1 = nn.L1Loss()
+    l1 = nn.SmoothL1Loss()
 
     img_2gray = transforms.Grayscale()
     img_pil = transforms.ToPILImage()
