@@ -250,14 +250,6 @@ def train(self):
                 g_output.backward()
                 g_optimizer.step()
 
-                d_optimizer.zero_grad()
-                # 训练完成后的tensor在调用时要加.detach()
-                fake_outputs = discriminator(fake.detach())
-                real_outputs = discriminator(img)
-
-                d_output = d_loss(fake_outputs, real_outputs)
-                d_output.backward()
-                d_optimizer.step()
             with torch.no_grad():
                 d_epoch_loss += d_output
                 g_epoch_loss += g_output
@@ -272,11 +264,11 @@ def train(self):
                                              channel_axis=2,
                                              multichannel=True, gaussian_weights=False, full=False)
 
-                pbar.set_description("Epoch [%d/%d] ----------- Batch [%d/%d] -----------  Generator loss: %.4f "
-                                     "-----------  Discriminator loss: %.4f-----------"
-                                     "PSN: %.4f----------- Total loss: %.4f ------------ SSIM: %.4f"
-                                     % (epoch + 1, self.epochs, target + 1, len(train_loader), g_output.item(),
-                                        d_output.item(), psn, total_loss, ssim))
+            pbar.set_description("Epoch [%d/%d] ----------- Batch [%d/%d] -----------  Generator loss: %.4f "
+                                 "-----------  Discriminator loss: %.4f-----------"
+                                 "PSN: %.4f----------- Total loss: %.4f ------------ SSIM: %.4f"
+                                 % (epoch + 1, self.epochs, target + 1, len(train_loader), g_output.item(),
+                                    d_output.item(), psn, total_loss, ssim))
 
         g_checkpoint = {
             'net': generator.state_dict(),
@@ -319,9 +311,10 @@ def train(self):
             torch.save(g_checkpoint, path + '/generator/%d.pt' % (epoch + 1))
             torch.save(d_checkpoint, path + '/discriminator/%d.pt' %
                        (epoch + 1))
-        # 可视化训练
-        log.add_images('real', img, epoch + 1)
-        log.add_images('fake', fake, epoch + 1)
+        # 可视化训练结果
+        log.add_image('real', 255. * img[0])
+        log.add_image('gray', 255. * img_gray[0])
+        log.add_image('fake', 255. * fake[0])
 
     log.close()
 
@@ -352,7 +345,7 @@ def parse_args():
     parser.add_argument("--loss", type=str, default='mse',
                         choices=['BCEBlurWithLogitsLoss', 'mse', 'bce',
                                  'SoftTargetCrossEntropy'],
-== == ===
+== == == =
     parser.add_argument("--resume", type=tuple, default=[],
                         help="path to two latest checkpoint,yes or no")
     parser.add_argument("--amp", type=bool, default=True,

@@ -115,12 +115,12 @@ def predict_live(self):
     else:
         device = torch.device('cpu')
     model = Generator()
-    model_structure(model, (3, self.img_size[0], self.img_size[1]))
+    model_structure(model, (1, self.img_size[0], self.img_size[1]))
     checkpoint = torch.load(self.model)
     model.load_state_dict(checkpoint['net'])
     model.to(device)
     cap = cv2.VideoCapture(2)  # 读取图像
-    img_2gray = transforms.Grayscale(num_output_channels=3)
+    img_2gray = transforms.Grayscale()
     model.eval()
     torch.no_grad()
     if not os.path.exists(os.path.join(self.save_path, 'predictions')):
