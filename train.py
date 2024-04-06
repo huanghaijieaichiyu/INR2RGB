@@ -24,7 +24,6 @@ import time
 import cv2
 import numpy as np
 import torch
-from timm.loss import SoftTargetCrossEntropy
 from timm.optim import Lion, RMSpropTF
 from torch import nn
 from torch.cuda.amp import autocast
@@ -32,10 +31,11 @@ from torch.utils import tensorboard
 from torch.utils.data import DataLoader
 from torchvision import transforms
 from tqdm import tqdm
-from skimage.metrics import structural_similarity, peak_signal_noise_ratio
+from skimage.metrics import peak_signal_noise_ratio
 
 from datasets.data_set import MyDataset
 from models.base_mode import Generator, Discriminator
+from utils.color_trans import myPSlab2rgb, myPSrgb2lab
 from utils.img_progress import process_image
 from utils.loss import BCEBlurWithLogitsLoss, FocalLoss
 from utils.model_map import model_structure
@@ -123,6 +123,7 @@ def train(self):
     print('train models at the %s device' % device)
     os.makedirs(path, exist_ok=True)
 
+    # 加载数据集
     train_data = MyDataset(self.data, img_size=self.img_size)
 
     train_loader = DataLoader(train_data,
@@ -175,7 +176,6 @@ def train(self):
     mse = nn.MSELoss()
     mse = mse.to(device)
 
-    img_2gray = transforms.Grayscale()
     img_pil = transforms.ToPILImage()
 
     # 储存loss 判断模型好坏
@@ -221,20 +221,21 @@ def train(self):
             target, (img, label) = data
             # print(img)
             # 对输入图像进行处理
+            img_lab = myPSrgb2lab(img)
+            gray, a, b = torch.split(img_lab, 1, 1)
+            color = torch.cat([a, b], dim=1)
+            lamb = 128.  # 取绝对值最大值，避免负数超出索引
+            gray = gray.to(device)
+            color = color.to(device)
 
-            x, y = process_image(img_pil(img[0]))
-            x_trans = torch.tensor(x, dtype=torch.float32).to(device)
-            y_trans = torch.tensor(y, dtype=torch.float32).to(device)
-            x_trans = torch.permute(x_trans, (0, 3, 1, 2))
-            y_trans = torch.permute(y_trans, (0, 3, 1, 2))
             '''img = img.to(device)
             img_gray = img_2gray(img)
             img_gray = img_gray.to(device)'''
 
             with autocast(enabled=self.amp):
                 '''---------------延时训练判别模型---------------'''
-                real_outputs = discriminator(y_trans)
-                fake = generator(x_trans)
+                real_outputs = discriminator(color / lamb)
+                fake = generator(gray)  # 记得输入要换成明度！！！
                 fake_outputs = discriminator(fake)
                 d_optimizer.zero_grad()
 
@@ -246,18 +247,18 @@ def train(self):
                     fake_outputs))  # D 希望 fake_loss 为 0
                 d_fake_output.backward()
 
-                d_output = d_real_output + d_fake_output
+                d_output = (d_real_output + d_fake_output) * 0.5
                 d_output.backward()
                 d_optimizer.step()
 
                 '''--------------- 训练生成器 ----------------'''
-                fake = generator(x_trans)
+                fake = generator(gray)
                 g_optimizer.zero_grad()
-                fake_inputs = discriminator(fake.detach())
+                fake_inputs = discriminator(fake)
                 g_dis = loss(fake_inputs, torch.ones_like(
                     fake_inputs))  # G 希望 fake_loss 为 1
-                g_gen = mse(fake.detach(), img)  # 加上生成损失
-                g_output = g_dis + g_gen * 10
+                g_gen = mse(fake, color / lamb)  # 加上生成损失
+                g_output = (g_dis + g_gen) * 0.5
                 g_output.backward()
                 g_optimizer.step()
 
@@ -271,24 +272,23 @@ def train(self):
             fake_img[:, :, 1:] = 128 * \
                 fake.permute(0, 2, 3, 1).detach().cpu().numpy()[0]
             fake_img = 255. * cv2.cvtColor(fake_img, cv2.COLOR_LAB2RGB)
+            fake_tensor = torch.zeros(
+                (self.batch_size, 3, self.img_size[0], self.img_size[1]), dtype=torch.float32)
+            fake_tensor[:, 0, :, :] = gray[:, 0, :, :]  # 主要切片位置
+            fake_tensor[:, 1:, :, :] = lamb * fake
+            fake_img = np.array(
+                img_pil(myPSlab2rgb(fake_tensor)[0]), dtype=np.float32)
             # print(fake_img)
-            # 加入新的评价指标：PSNR,SSIM
-            fake_pil = img_pil(fake[epoch])
-            real_pil = img_pil(img[epoch])
+            # 加入新的评价指标：PSN,SSIM
+            real_pil = img_pil(img[0])
             psn = peak_signal_noise_ratio(
-                np.array(real_pil), np.array(fake_pil))
-            ssim = structural_similarity(cv2.cvtColor(np.array(fake_pil), cv2.COLOR_RGB2GRAY),
-                                         cv2.cvtColor(
-                                             np.array(real_pil), cv2.COLOR_RGB2GRAY),
-                                         win_size=None,
-                                         gradient=False, data_range=255,
-                                         gaussian_weights=False, full=False)
+                np.array(real_pil, dtype=np.float32) / 255., fake_img / 255., data_range=1)
 
             pbar.set_description("Epoch [%d/%d] ----------- Batch [%d/%d] -----------  Generator loss: %.4f "
                                  "-----------  Discriminator loss: %.4f-----------"
-                                 "-----------Total loss: %.4f-----------PSN: %.4f-----------SSIM: %.4f"
+                                 "-----------Total loss: %.4f-----------PSN: %.4f"
                                  % (epoch + 1, self.epochs, target + 1, len(train_loader), g_output.item(),
-                                    d_output.item(), total_loss, psn, ssim))
+                                    d_output.item(), total_loss, psn))
 
         g_checkpoint = {
             'net': generator.state_dict(),
@@ -306,7 +306,6 @@ def train(self):
 
         log.add_scalar('discriminator total loss', d_output.item(), epoch)
         log.add_scalar('generator_PSNR', psn, epoch)
-        log.add_scalar('SSIM', ssim, epoch)
 
         # 保持最佳模型
 
@@ -334,7 +333,7 @@ def train(self):
                        (epoch + 1))
         # 可视化训练结果
         log.add_images('real', img, epoch + 1)
-        log.add_image('fake', fake_img[0], epoch + 1)
+        log.add_images('fake', myPSlab2rgb(fake_tensor), epoch + 1)
 
     log.close()
 
@@ -364,6 +363,12 @@ def parse_args():
                                  'FocalLoss'],
                         help="loss function")
     parser.add_argument("--lr", type=float, default=6.4e-5,
+                        help="learning rate, for adam is 1-e3, SGD is 1-e2")  # 学习率
+    parser.add_argument("--momentum", type=float, default=0.5,
+                        help="momentum for adam and SGD")
+    parser.add_argument("--model", type=str, default="train",
+                        help="train or test model")
+    parser.add_argument("--lr", type=float, default=5.4e-4,
                         help="learning rate, for adam is 1-e3, SGD is 1-e2")  # 学习率
     parser.add_argument("--momentum", type=float, default=0.5,
                         help="momentum for adam and SGD")
