@@ -36,6 +36,7 @@ from skimage.metrics import structural_similarity, peak_signal_noise_ratio
 
 from datasets.data_set import MyDataset
 from models.base_mode import Generator, Discriminator
+from utils.img_progress import process_image
 from utils.loss import BCEBlurWithLogitsLoss, FocalLoss
 from utils.model_map import model_structure
 from utils.save_path import Path
@@ -171,7 +172,7 @@ def train(self):
         print('no such Loss Function!')
         raise NotImplementedError
     loss = loss.to(device)
-    mse = nn.SmoothL1Loss()
+    mse = nn.MSELoss()
     mse = mse.to(device)
 
     img_2gray = transforms.Grayscale()
@@ -220,16 +221,21 @@ def train(self):
             target, (img, label) = data
             # print(img)
             # 对输入图像进行处理
-            img = img.to(device)
+
+            x, y = process_image(img_pil(img[0]))
+            x_trans = torch.tensor(x, dtype=torch.float32).to(device)
+            y_trans = torch.tensor(y, dtype=torch.float32).to(device)
+            x_trans = torch.permute(x_trans, (0, 3, 1, 2))
+            y_trans = torch.permute(y_trans, (0, 3, 1, 2))
+            '''img = img.to(device)
             img_gray = img_2gray(img)
-            img_gray = img_gray.to(device)
+            img_gray = img_gray.to(device)'''
 
             with autocast(enabled=self.amp):
-                real_outputs = discriminator(img)
-                fake = generator(img_gray)
-                fake_outputs = discriminator(fake)
-
                 '''---------------延时训练判别模型---------------'''
+                real_outputs = discriminator(y_trans)
+                fake = generator(x_trans)
+                fake_outputs = discriminator(fake)
                 d_optimizer.zero_grad()
 
                 d_real_output = loss(real_outputs, torch.ones_like(
@@ -245,7 +251,7 @@ def train(self):
                 d_optimizer.step()
 
                 '''--------------- 训练生成器 ----------------'''
-
+                fake = generator(x_trans)
                 g_optimizer.zero_grad()
                 fake_inputs = discriminator(fake.detach())
                 g_dis = loss(fake_inputs, torch.ones_like(
@@ -258,6 +264,14 @@ def train(self):
             d_epoch_loss += d_output
             g_epoch_loss += g_output
             total_loss = (d_epoch_loss + g_epoch_loss) / len(train_loader)
+            # 图像拼接还原
+            fake_img = np.zeros(
+                (self.img_size[0], self.img_size[1], 3), dtype=np.float32)
+            fake_img[:, :, 0] = x[0][:, :, 0]
+            fake_img[:, :, 1:] = 128 * \
+                fake.permute(0, 2, 3, 1).detach().cpu().numpy()[0]
+            fake_img = 255. * cv2.cvtColor(fake_img, cv2.COLOR_LAB2RGB)
+            # print(fake_img)
             # 加入新的评价指标：PSNR,SSIM
             fake_pil = img_pil(fake[epoch])
             real_pil = img_pil(img[epoch])
@@ -267,7 +281,7 @@ def train(self):
                                          cv2.cvtColor(
                                              np.array(real_pil), cv2.COLOR_RGB2GRAY),
                                          win_size=None,
-                                         gradient=False,
+                                         gradient=False, data_range=255,
                                          gaussian_weights=False, full=False)
 
             pbar.set_description("Epoch [%d/%d] ----------- Batch [%d/%d] -----------  Generator loss: %.4f "
@@ -320,8 +334,7 @@ def train(self):
                        (epoch + 1))
         # 可视化训练结果
         log.add_images('real', img, epoch + 1)
-        log.add_images('gray', img_gray, epoch + 1)
-        log.add_images('fake', fake, epoch + 1)
+        log.add_image('fake', fake_img[0], epoch + 1)
 
     log.close()
 

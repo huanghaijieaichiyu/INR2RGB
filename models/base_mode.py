@@ -126,7 +126,7 @@ class Generator(nn.Module):
     def __init__(self) -> None:
         super(Generator, self).__init__()
         self.in_channel = 1
-        self.out_channel = 3
+        self.out_channel = 2
 
         self.conv_in = Conv(self.in_channel, 8 * self.in_channel)
         self.conv1 = EMA(8 * self.in_channel)
@@ -160,7 +160,7 @@ class Generator(nn.Module):
 class Discriminator(nn.Module):
     def __init__(self):
         super(Discriminator, self).__init__()
-        self.conv_in = Conv(3, 8, 3, 2)
+        self.conv_in = Conv(2, 8, 3, 2)
         self.conv_out = Conv(8, 3, 3, 2)
         self.sig = nn.Sigmoid()
         self.linear1 = nn.Linear(120, 1)
