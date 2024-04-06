@@ -3,9 +3,9 @@ import os
 import random
 import time
 
-import cv2
 import numpy as np
 import torch
+from skimage.metrics import peak_signal_noise_ratio
 from timm.optim import Lion, RMSpropTF
 from torch import nn
 from torch.cuda.amp import autocast
@@ -13,12 +13,10 @@ from torch.utils import tensorboard
 from torch.utils.data import DataLoader
 from torchvision import transforms
 from tqdm import tqdm
-from skimage.metrics import peak_signal_noise_ratio
 
 from datasets.data_set import MyDataset
 from models.base_mode import Generator, Discriminator
 from utils.color_trans import myPSlab2rgb, myPSrgb2lab
-from utils.img_progress import process_image
 from utils.loss import BCEBlurWithLogitsLoss, FocalLoss
 from utils.model_map import model_structure
 from utils.save_path import Path
@@ -244,8 +242,9 @@ def train(self):
             'epoch': epoch,
             'loss': loss.state_dict()
         }
+        # 训练日志写入
+        log.add_scalar('Total loss', total_loss, epoch)
         log.add_scalar('generator total loss', g_output.item(), epoch)
-
         log.add_scalar('discriminator total loss', d_output.item(), epoch)
         log.add_scalar('generator_PSNR', psn, epoch)
 
