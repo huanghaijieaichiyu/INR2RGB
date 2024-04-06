@@ -1,5 +1,5 @@
+
 from ptflops import get_model_complexity_info
-import torch
 
 
 def model_structure(model, img_size):

@@ -3,9 +3,9 @@ import os
 import random
 import time
 
+import cv2
 import numpy as np
 import torch
-from skimage.metrics import structural_similarity
 from timm.loss import SoftTargetCrossEntropy
 from timm.optim import Lion, RMSpropTF
 from torch import nn
@@ -14,10 +14,11 @@ from torch.utils import tensorboard
 from torch.utils.data import DataLoader
 from torchvision import transforms
 from tqdm import tqdm
+from skimage.metrics import structural_similarity, peak_signal_noise_ratio
 
 from datasets.data_set import MyDataset
 from models.base_mode import Generator, Discriminator
-from utils.loss import BCEBlurWithLogitsLoss
+from utils.loss import BCEBlurWithLogitsLoss, FocalLoss
 from utils.model_map import model_structure
 from utils.save_path import Path
 
@@ -118,15 +119,16 @@ def train(self):
         loss = BCEBlurWithLogitsLoss()
     elif self.loss == 'mse':
         loss = nn.MSELoss()
-    elif self.loss == 'SoftTargetCrossEntropy':
-        loss = SoftTargetCrossEntropy()
+    elif self.loss == 'FocalLoss':
+        loss = FocalLoss(nn.BCEWithLogitsLoss())
     elif self.loss == 'bce':
-        loss = BCEBlurWithLogitsLoss()
+        loss = nn.BCEWithLogitsLoss()
     else:
         print('no such Loss Function!')
         raise NotImplementedError
     loss = loss.to(device)
-    l1 = nn.SmoothL1Loss()
+    mse = nn.SmoothL1Loss()
+    mse = mse.to(device)
 
     img_2gray = transforms.Grayscale()
     img_pil = transforms.ToPILImage()
@@ -172,7 +174,6 @@ def train(self):
                                                                                  'total_fmt} {elapsed}')
         for data in pbar:
             target, (img, label) = data
-            img *= 1 / 255.
             # print(img)
             # 对输入图像进行处理
             img = img.to(device)
@@ -182,16 +183,16 @@ def train(self):
             with autocast(enabled=self.amp):
                 real_outputs = discriminator(img)
                 fake = generator(img_gray)
+                fake_outputs = discriminator(fake)
 
-                '''---------------先训练判别模型---------------'''
+                '''---------------延时训练判别模型---------------'''
                 d_optimizer.zero_grad()
-                fake_outputs = discriminator(fake.detach())
 
                 d_real_output = loss(real_outputs, torch.ones_like(real_outputs))  # D 希望 real_loss 为 1
 
                 d_fake_output = loss(fake_outputs, torch.zeros_like(fake_outputs))  # D 希望 fake_loss 为 0
 
-                d_output = (d_real_output + d_fake_output) * 0.5
+                d_output = d_real_output + d_fake_output
                 d_output.backward()
                 d_optimizer.step()
 
@@ -200,29 +201,29 @@ def train(self):
                 g_optimizer.zero_grad()
                 fake_inputs = discriminator(fake.detach())
                 g_dis = loss(fake_inputs, torch.ones_like(fake_inputs))  # G 希望 fake_loss 为 1
-                g_l1 = l1(fake.detach(), img)  # 加上生成损失
-                g_output = g_dis + g_l1 * 100
+                g_gen = mse(fake.detach(), img)  # 加上生成损失
+                g_output = g_dis + g_gen * 10
                 g_output.backward()
                 g_optimizer.step()
 
             d_epoch_loss += d_output
             g_epoch_loss += g_output
             total_loss = (d_epoch_loss + g_epoch_loss) / len(train_loader)
-            '''# 加入新的评价指标：PSNR,SSIM
-            max_pix = 255.
-            psn = 10 * np.log10((max_pix ** 2) / g_dis.item())
-            ssim = structural_similarity(np.array(img_pil(fake[0])),
-                                         np.array(img_pil(img[0])),
+            # 加入新的评价指标：PSNR,SSIM
+            fake_pil = img_pil(fake[epoch])
+            real_pil = img_pil(img[epoch])
+            psn = peak_signal_noise_ratio(np.array(real_pil), np.array(fake_pil))
+            ssim = structural_similarity(cv2.cvtColor(np.array(fake_pil), cv2.COLOR_RGB2GRAY),
+                                         cv2.cvtColor(np.array(real_pil), cv2.COLOR_RGB2GRAY),
                                          win_size=None,
                                          gradient=False,
-                                         channel_axis=2,
-                                         multichannel=True, gaussian_weights=False, full=False)'''
+                                         gaussian_weights=False, full=False)
 
             pbar.set_description("Epoch [%d/%d] ----------- Batch [%d/%d] -----------  Generator loss: %.4f "
                                  "-----------  Discriminator loss: %.4f-----------"
-                                 "Total loss: %.4f"
+                                 "-----------Total loss: %.4f-----------PSN: %.4f-----------SSIM: %.4f"
                                  % (epoch + 1, self.epochs, target + 1, len(train_loader), g_output.item(),
-                                    d_output.item(), total_loss))
+                                    d_output.item(), total_loss, psn, ssim))
 
         g_checkpoint = {
             'net': generator.state_dict(),
@@ -237,9 +238,10 @@ def train(self):
             'loss': loss.state_dict()
         }
         log.add_scalar('generator total loss', g_output.item(), epoch)
+
         log.add_scalar('discriminator total loss', d_output.item(), epoch)
-        ''' log.add_scalar('generator_PSNR', psn, epoch)
-        log.add_scalar('SSIM', ssim, epoch)'''
+        log.add_scalar('generator_PSNR', psn, epoch)
+        log.add_scalar('SSIM', ssim, epoch)
 
         # 保持最佳模型
 
@@ -264,33 +266,34 @@ def train(self):
             torch.save(g_checkpoint, path + '/generator/%d.pt' % (epoch + 1))
             torch.save(d_checkpoint, path + '/discriminator/%d.pt' % (epoch + 1))
         # 可视化训练结果
-        log.add_images('real', 255. * img, epoch + 1)
-        log.add_images('gray', 255. * img_gray, epoch + 1)
-        log.add_images('fake', 255. * fake, epoch + 1)
+        log.add_images('real', img, epoch + 1)
+        log.add_images('gray', img_gray, epoch + 1)
+        log.add_images('fake', fake, epoch + 1)
 
     log.close()
 
 
 def parse_args():
     parser = argparse.ArgumentParser()  # 命令行选项、参数和子命令解析器
-    parser.add_argument("--data", type=str, help="path to dataset", required=True)
+    parser.add_argument("--data", type=str, default='../datasets/coco_2k', help="path to dataset", required=True)
     parser.add_argument("--epochs", type=int, default=1000, help="number of epochs of training")  # 迭代次数
-    parser.add_argument("--batch_size", type=int, default=32, help="size of the batches")  # batch大小
+    parser.add_argument("--batch_size", type=int, default=8, help="size of the batches")  # batch大小
     parser.add_argument("--img_size", type=tuple, default=(480, 480), help="size of the image")
-    parser.add_argument("--optimizer", type=str, default='lion', choices=['AdamW', 'SGD', 'Adam', 'lion', 'rmp'])
-    parser.add_argument("--num_workers", type=int, default=0,
+    parser.add_argument("--optimizer", type=str, default='AdamW', choices=['AdamW', 'SGD', 'Adam', 'lion', 'rmp'])
+    parser.add_argument("--num_workers", type=int, default=12,
                         help="number of data loading workers, if in windows, must be 0"
                         )
     parser.add_argument("--seed", type=int, default=1999, help="random seed")
     parser.add_argument("--resume", type=tuple, default=[], help="path to two latest checkpoint,yes or no")
     parser.add_argument("--amp", type=bool, default=True, help="Whether to use amp in mixed precision")
-    parser.add_argument("--loss", type=str, default='mse', choices=['BCEBlurWithLogitsLoss', 'mse', 'bce',
-                                                                    'SoftTargetCrossEntropy'],
+    parser.add_argument("--loss", type=str, default='BCEBlurWithLogitsLoss',
+                        choices=['BCEBlurWithLogitsLoss', 'mse', 'bce',
+                                 'FocalLoss'],
                         help="loss function")
     parser.add_argument("--lr", type=float, default=6.4e-5, help="learning rate, for adam is 1-e3, SGD is 1-e2")  # 学习率
-    parser.add_argument("--momentum", type=float, default=0.9, help="momentum for adam and SGD")
+    parser.add_argument("--momentum", type=float, default=0.5, help="momentum for adam and SGD")
     parser.add_argument("--model", type=str, default="train", help="train or test model")
-    parser.add_argument("--b1", type=float, default=0.9,
+    parser.add_argument("--b1", type=float, default=0.5,
                         help="adam: decay of first order momentum of gradient")  # 动量梯度下降第一个参数
     parser.add_argument("--b2", type=float, default=0.999,
                         help="adam: decay of first order momentum of gradient")  # 动量梯度下降第二个参数

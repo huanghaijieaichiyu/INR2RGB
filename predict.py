@@ -128,5 +128,8 @@ def predict_live(self):
 
 if __name__ == '__main__':
     opt = parse_args()
-    # predict(opt)
-    predict_live(opt)
+    if opt.data == '0':
+
+        predict_live(opt)
+    else:
+        predict(opt)

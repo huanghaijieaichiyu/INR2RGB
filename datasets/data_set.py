@@ -7,11 +7,11 @@ from torchvision.transforms import transforms
 
 
 def get_images_and_labels(dir_path):
-    '''
+    """
     从图像数据集的根目录dir_path下获取所有类别的图像名列表和对应的标签名列表
     :param dir_path: 图像数据集的根目录
     :return: images_list, labels_list
-    '''
+    """
     dir_path = Path(dir_path)
     classes = []  # 类别名列表
 
@@ -53,7 +53,6 @@ class MyDataset(Dataset):
         img_path = self.images[index]
         label = self.labels[index]
         img = cv2.imread(img_path)
-        # img = cv2.normalize(img, None, 0, 255, cv2.NORM_MINMAX)
         img = cv2.resize(img, self.img_size)
         img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
         """

@@ -13,7 +13,7 @@ class BCEBlurWithLogitsLoss(nn.Module):
         super().__init__()
         self.loss_fcn = nn.BCEWithLogitsLoss(reduction='none')  # must be nn.BCEWithLogitsLoss()
         self.alpha = alpha
-
+        self.reduction = 'none'
     def forward(self, pred, true):
         loss = self.loss_fcn(pred, true)
         pred = torch.sigmoid(pred)  # prob from logits
