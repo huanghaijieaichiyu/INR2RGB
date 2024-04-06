@@ -125,30 +125,34 @@ class Generator(nn.Module):
 
     def __init__(self) -> None:
         super(Generator, self).__init__()
-        self.conv_in = Conv(1, 8)
-        self.conv2 = EMA(8)
-        self.conv3 = Conv(8, 32)
-        self.conv4 = Conv(32, 64)
-        self.conv5 = Conv(64, 32)
-        self.conv6 = Conv(64, 32)
-        self.conv7 = Conv(32, 8)
-        self.conv_out = Conv(8, 3, 3, act=False)
+        self.in_channel = 1
+        self.out_channel = 3
+
+        self.conv_in = Conv(self.in_channel, 8 * self.in_channel)
+        self.conv1 = EMA(8 * self.in_channel)
+        self.conv2 = Conv(8 * self.in_channel, 16 * self.in_channel)
+        self.conv3 = Conv(16 * self.in_channel, 32 * self.in_channel, s=2)
+        self.conv4 = Conv(32 * self.in_channel, 32 * self.in_channel)
+        self.conv5 = Conv(32 * self.in_channel, 32 * self.in_channel, 3)
+        self.conv6 = Conv(32 * self.in_channel, 8 * self.in_channel, s=2)
+        self.conv_out = Conv(8 * self.in_channel, self.out_channel, act=False)
         self.tanh = nn.Tanh()
-        self.concat = Concat()
+        self.us = nn.Upsample(scale_factor=2)
 
     def forward(self, x):
         x1 = self.conv_in(x)
-        x2 = self.conv2(x1)
-        x3 = self.conv3(x2)
-        x4 = self.conv4(x3)
-        x5 = self.conv5(x4)
-        x5 = self.concat([x3, x5])
-        x6 = self.conv6(x5)
-        x7 = self.conv7(x6)
+        x2 = self.conv1(x1)
+        x3 = self.conv2(x2)
+        x3 = self.us(x3)
+        x4 = self.conv3(x3)
+        x5 = self.conv4(x4)
+        x6 = self.conv5(x5)
+        x6 = self.us(x6)
+        x7 = self.conv6(x6)
         x8 = self.conv_out(x7)
         x9 = self.tanh(x8)
 
-        x = x9.view(-1, 3, x.shape[2], x.shape[3])
+        x = x9.view(-1, self.out_channel, x.shape[2], x.shape[3])
 
         return x
 
@@ -157,17 +161,13 @@ class Discriminator(nn.Module):
     def __init__(self):
         super(Discriminator, self).__init__()
         self.conv_in = Conv(3, 8, 3, 2)
-        self.conv1 = Conv(8, 16, 3, 2)
-        self.conv2 = Conv(16, 8, 3, 2)
         self.conv_out = Conv(8, 3, 3, 2)
         self.sig = nn.Sigmoid()
-        self.linear1 = nn.Linear(30, 1)
+        self.linear1 = nn.Linear(120, 1)
 
     def forward(self, x):
         x1 = self.conv_in(x)
-        x2 = self.conv1(x1)
-        x3 = self.conv2(x2)
-        x4 = self.conv_out(x3)
+        x4 = self.conv_out(x1)
         x = self.linear1(x4)
         x = self.sig(x)
 

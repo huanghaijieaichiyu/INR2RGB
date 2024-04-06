@@ -4,17 +4,7 @@ import numpy as np
 
 def process_image(image):
     image = np.array(image, dtype=np.float32)
-<<<<<<< HEAD
-    x = cv2.cvtColor((1 / 255. * image), cv2.COLOR_RGB2LAB)[:, :, 0]  # 只要第一列：灰度
-    y = cv2.cvtColor((1 / 255. * image), cv2.COLOR_RGB2LAB)[:, :, 1:]  # 不要第一列 ：AB
-
-    y /= 128
-    print('y: ', y)
-    x = x.reshape(1, image_size[0], image_size[1], 1)
-    y = y.reshape(1, image_size[0], image_size[1], 2)
-    return x, y, image_size
-=======
-    image /= 255.0
-    image = cv2.cvtCOLOR(image, cv2.COLOR_RGB2GRAY)
-    return image
->>>>>>> e08c197 (updates)
+    x = cv2.cvtColor(image, cv2.COLOR_RGB2LAB)[:, :, 0]  # 只要明度
+    y = cv2.cvtColor(image, cv2.COLOR_RGB2LAB)[:, :, 1:]  # 只要颜色信息
+    y = y/128.   # 明度归一化处理
+    return x, y
