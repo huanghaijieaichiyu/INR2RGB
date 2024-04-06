@@ -44,14 +44,14 @@ def predict(self):
     log = tensorboard.SummaryWriter(log_dir=os.path.join(self.save_path, 'tensorboard'),
                                     filename_suffix=str('val'),
                                     flush_secs=180)
-    model = ConvertV1()
+    model = Generator()
     model_structure(model, (1, self.img_size[0], self.img_size[1]))
     checkpoint = torch.load(self.model)
     model.load_state_dict(checkpoint['net'])
     model.to(device)
-    test_data = MyDataset(self.data)
+    test_data = MyDataset(self.data, self.img_size)
     trans = transforms.ToPILImage()
-    img_2gray = transforms.Grayscale(3)
+    img_2gray = transforms.Grayscale()
     test_loader = DataLoader(test_data,
                              batch_size=self.batch_size,
                              num_workers=self.num_workers,
