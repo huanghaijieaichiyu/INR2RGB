@@ -5,6 +5,7 @@ import time
 
 import numpy as np
 import torch
+from skimage.metrics import peak_signal_noise_ratio
 from timm.loss import SoftTargetCrossEntropy
 from timm.optim import Lion, RMSpropTF
 from torch import nn
@@ -12,13 +13,11 @@ from torch.cuda.amp import autocast
 from torch.utils import tensorboard
 from torch.utils.data import DataLoader
 from torchvision.transforms import transforms
-from skimage.metrics import structural_similarity
 from tqdm import tqdm
 
 from datasets.data_set import MyDataset
-from models.base_mode import ConvertV1, ConvertV2, BaseModel
-from utils.colorful import myPSrgb2lab
-from utils.img_progress import process_image
+from models.base_mode import ConvertV2
+from utils.colorful import PSrgb2lab, PSlab2rgb
 from utils.loss import BCEBlurWithLogitsLoss
 from utils.model_map import model_structure
 from utils.save_path import Path
@@ -112,11 +111,10 @@ def train(self):
         raise NotImplementedError
     loss = loss.to(device)
 
-    img_transform = transforms.ToPILImage()
-    img_gray = transforms.Grayscale(1)
+    img_pil = transforms.ToPILImage()
     # 储存loss 判断模型好坏
-    Loss = [1.0]
-
+    Loss = [1.]
+    PSN = [0.]
     # 此处开始训练
     mode.train()
     for epoch in range(self.epochs):
@@ -138,8 +136,8 @@ def train(self):
         for data in pbar:
             target, (img, label) = data
 
-            img_lab = myPSrgb2lab(img)
-            gray, a, b = torch.split(img_lab, 1, 1)
+            img_lab = PSrgb2lab(img)
+            gray, a, b = torch.split(img_lab, [1, 1, 1], 1)
             color = torch.cat([a, b], dim=1)
             lamb = 1 / 128.  # 取绝对值最大值，避免负数超出索引
             gray = gray.to(device)
@@ -148,24 +146,26 @@ def train(self):
             optimizer.zero_grad()
             with autocast(enabled=self.amp):
                 fake = mode(gray)
-                output = loss(fake, color * lamb)  # ---大坑--损失函数计算必须全是tensor
+                output = loss(fake, color * lamb)
                 output.backward()
                 optimizer.step()
 
-            with torch.no_grad(): # 不需要梯度操作，节省显存空间
+            with torch.no_grad():  # 不需要梯度操作，节省显存空间
 
-                # 加入新的评价指标：PSNR,SSIM
-                '''max_pix = 255.
-                psnr = 10 * np.log10((max_pix ** 2) / output.item())
-
-                ssim = structural_similarity(np.array(img_transform(fake[0]), dtype=np.float32),
-                                             np.array(img_transform(img[0]),
-                                                      dtype=np.float32), channel_axis=2, data_range=1)'''
+                fake_tensor = torch.zeros((self.batch_size, 3, self.img_size[0], self.img_size[1]), dtype=torch.float32)
+                fake_tensor[:, 0, :, :] = gray[:, 0, :, :]  # 主要切片位置
+                fake_tensor[:, 1:, :, :] = fake / lamb
+                fake_img = np.array(img_pil(PSlab2rgb(fake_tensor)[0]), dtype=np.float32)
+                # print(fake_img)
+                # 加入新的评价指标：PSN,SSIM
+                real_pil = img_pil(img[0])
+                psn = peak_signal_noise_ratio(np.array(real_pil, dtype=np.float32) / 255., fake_img / 255.,
+                                              data_range=1)
 
                 pbar.set_description("Epoch [%d/%d] ---------------  Batch [%d/%d] ---------------  loss: %.4f "
-                                     "---------------"
+                                     "---------------PSN: %.4f"
 
-                                     % (epoch + 1, self.epochs, target + 1, len(train_loader), output.item()))
+                                     % (epoch + 1, self.epochs, target + 1, len(train_loader), output.item(), psn))
 
         checkpoint = {
             'net': mode.state_dict(),
@@ -177,9 +177,9 @@ def train(self):
 
         # 依据损失和相似度来判断最佳模型
 
-        if output.item() <= min(Loss):
+        if output.item() <= min(Loss) and psn > max(PSN):
             torch.save(checkpoint, path + '/best.pt')
-
+        PSN.append(psn)
         Loss.append(output.item())
         # 保持训练权重
         torch.save(checkpoint, path + '/last.pt')
@@ -194,7 +194,7 @@ def train(self):
             # 5 epochs for saving another model
         if (epoch + 1) % 10 == 0 and (epoch + 1) >= 10:
             torch.save(checkpoint, path + '/%d.pt' % (epoch + 1))
-        log.add_images('fake', fake, epoch)
+        log.add_images('fake', PSlab2rgb(fake_tensor), epoch)
         log.add_images('real', img, epoch)
     log.close()
 
@@ -203,22 +203,22 @@ def parse_args():
     parser = argparse.ArgumentParser()  # 命令行选项、参数和子命令解析器
     parser.add_argument("--data", type=str, help="path to dataset", required=True)
     parser.add_argument("--epochs", type=int, default=1000, help="number of epochs of training")  # 迭代次数
-    parser.add_argument("--batch_size", type=int, default=32, help="size of the batches")  # batch大小
-    parser.add_argument("--img_size", type=tuple, default=(480, 480), help="size of the image")
-    parser.add_argument("--optimizer", type=str, default='lion', choices=['AdamW', 'SGD', 'Adam', 'lion', 'rmp'])
-    parser.add_argument("--num_workers", type=int, default=0,
+    parser.add_argument("--batch_size", type=int, default=16, help="size of the batches")  # batch大小
+    parser.add_argument("--img_size", type=tuple, default=(128, 128), help="size of the image")
+    parser.add_argument("--optimizer", type=str, default='AdamW', choices=['AdamW', 'SGD', 'Adam', 'lion', 'rmp'])
+    parser.add_argument("--num_workers", type=int, default=10,
                         help="number of data loading workers, if in windows, must be 0"
                         )
     parser.add_argument("--seed", type=int, default=1999, help="random seed")
     parser.add_argument("--resume", type=str, default='', help="path to latest checkpoint,yes or no")
     parser.add_argument("--amp", type=bool, default=True, help="Whether to use amp in mixed precision")
-    parser.add_argument("--loss", type=str, default='mse', choices=['BCEBlurWithLogitsLoss', 'mse', 'bce',
+    parser.add_argument("--loss", type=str, default='bce', choices=['BCEBlurWithLogitsLoss', 'mse', 'bce',
                                                                     'SoftTargetCrossEntropy'],
                         help="loss function")
-    parser.add_argument("--lr", type=float, default=6.4e-5, help="learning rate, for adam is 1-e3, SGD is 1-e2")  # 学习率
-    parser.add_argument("--momentum", type=float, default=0.9, help="momentum for adam and SGD")
+    parser.add_argument("--lr", type=float, default=6.4e-4, help="learning rate, for adam is 1-e3, SGD is 1-e2")  # 学习率
+    parser.add_argument("--momentum", type=float, default=0.6, help="momentum for adam and SGD")
     parser.add_argument("--model", type=str, default="train", help="train or test model")
-    parser.add_argument("--b1", type=float, default=0.9,
+    parser.add_argument("--b1", type=float, default=0.6,
                         help="adam: decay of first order momentum of gradient")  # 动量梯度下降第一个参数
     parser.add_argument("--b2", type=float, default=0.999,
                         help="adam: decay of first order momentum of gradient")  # 动量梯度下降第二个参数
