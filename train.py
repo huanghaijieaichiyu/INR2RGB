@@ -212,7 +212,7 @@ def parse_args():
     parser.add_argument("--seed", type=int, default=1999, help="random seed")
     parser.add_argument("--resume", type=str, default='', help="path to latest checkpoint,yes or no")
     parser.add_argument("--amp", type=bool, default=True, help="Whether to use amp in mixed precision")
-    parser.add_argument("--loss", type=str, default='BCEBlurWithLogitsLoss',
+    parser.add_argument("--loss", type=str, default='mse',
                         choices=['BCEBlurWithLogitsLoss', 'mse', 'bce',
                                  'SoftTargetCrossEntropy'],
                         help="loss function")
