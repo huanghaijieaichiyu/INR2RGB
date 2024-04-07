@@ -221,7 +221,7 @@ def train(self):
             # print(img)
             # 对输入图像进行处理
             img_lab = myPSrgb2lab(img)
-            gray, a, b = torch.split(img_lab, 1, 1)
+            gray, a, b = torch.split(img_lab, [1, 1, 1], 1)
             color = torch.cat([a, b], dim=1)
             lamb = 128.  # 取绝对值最大值，避免负数超出索引
             gray = gray.to(device)

@@ -137,7 +137,7 @@ class Generator(nn.Module):
         self.conv9 = nn.Sequential(RepNCSPELAN4(64, 32, 32, 16),
                                    RepNCSPELAN4(32, 16, 16, 8))
         self.conv10 = nn.Sequential(Conv(16, 8, 3),
-                                    Conv(8 , 2, 3, act=False)
+                                    Conv(8, 2, 3, act=False)
                                     )
         self.tanh = nn.Tanh()
         self.concat = Concat()
