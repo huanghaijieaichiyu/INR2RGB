@@ -197,7 +197,7 @@ def train(self):
 
                 d_fake_output = loss(fake_outputs, torch.zeros_like(fake_outputs))  # D 希望 fake_loss 为 0
 
-                d_output = d_real_output + d_fake_output
+                d_output = (d_real_output + d_fake_output) * 0.5
                 d_output.backward()
                 d_optimizer.step()
 
@@ -207,7 +207,7 @@ def train(self):
                 fake_inputs = discriminator(fake)
                 g_dis = loss(fake_inputs, torch.ones_like(fake_inputs))  # G 希望 fake_loss 为 1
                 g_gen = mse(fake, color / lamb)  # 加上生成损失
-                g_output = g_dis + g_gen
+                g_output = g_dis * 0.7 + g_gen * 0.3
                 g_output.backward()
                 g_optimizer.step()
 
@@ -281,10 +281,10 @@ def parse_args():
     parser = argparse.ArgumentParser()  # 命令行选项、参数和子命令解析器
     parser.add_argument("--data", type=str, default='../datasets/coco_2k', help="path to dataset", required=True)
     parser.add_argument("--epochs", type=int, default=1000, help="number of epochs of training")  # 迭代次数
-    parser.add_argument("--batch_size", type=int, default=16, help="size of the batches")  # batch大小
+    parser.add_argument("--batch_size", type=int, default=8, help="size of the batches")  # batch大小
     parser.add_argument("--img_size", type=tuple, default=(128, 128), help="size of the image")
     parser.add_argument("--optimizer", type=str, default='Adam', choices=['AdamW', 'SGD', 'Adam', 'lion', 'rmp'])
-    parser.add_argument("--num_workers", type=int, default=10,
+    parser.add_argument("--num_workers", type=int, default=20,
                         help="number of data loading workers, if in windows, must be 0"
                         )
     parser.add_argument("--seed", type=int, default=1999, help="random seed")
@@ -294,10 +294,10 @@ def parse_args():
                         choices=['BCEBlurWithLogitsLoss', 'mse', 'bce',
                                  'FocalLoss'],
                         help="loss function")
-    parser.add_argument("--lr", type=float, default=8.5e-4, help="learning rate, for adam is 1-e3, SGD is 1-e2")  # 学习率
-    parser.add_argument("--momentum", type=float, default=0.9, help="momentum for adam and SGD")
+    parser.add_argument("--lr", type=float, default=9.5e-4, help="learning rate, for adam is 1-e3, SGD is 1-e2")  # 学习率
+    parser.add_argument("--momentum", type=float, default=0.8, help="momentum for adam and SGD")
     parser.add_argument("--model", type=str, default="train", help="train or test model")
-    parser.add_argument("--b1", type=float, default=0.9,
+    parser.add_argument("--b1", type=float, default=0.8,
                         help="adam: decay of first order momentum of gradient")  # 动量梯度下降第一个参数
     parser.add_argument("--b2", type=float, default=0.999,
                         help="adam: decay of first order momentum of gradient")  # 动量梯度下降第二个参数

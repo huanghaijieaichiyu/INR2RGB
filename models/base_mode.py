@@ -1,7 +1,8 @@
 import torch
 import torch.nn as nn
 
-from models.common import Conv, C2f, CA, SPPELAN, RepNCSPELAN4, Concat, EMA, ADown
+from models.common import Conv, C2f, CA, SPPELAN, RepNCSPELAN4, Concat, EMA, ADown, SPPF
+from utils.model_map import model_structure
 
 
 class Generator(nn.Module):
@@ -12,9 +13,8 @@ class Generator(nn.Module):
         self.conv2 = RepNCSPELAN4(8, 16, 16, 8)
         self.conv3 = RepNCSPELAN4(16, 32, 32, 16)
         self.conv4 = nn.Sequential(RepNCSPELAN4(32, 64, 64, 32),
-                                   EMA(64),
-                                   Conv(64, 128, 3))
-        self.conv5 = SPPELAN(128, 128, 64)
+                                   Conv(64, 128, 5))
+        self.conv5 = SPPF(128, 128, 3)
         self.conv6 = nn.Sequential(Conv(128, 64, 5),
                                    ADown(64, 64),
                                    nn.Upsample(scale_factor=2))
@@ -61,20 +61,31 @@ class Discriminator(nn.Module):
         self.conv_in = Conv(2, 8, 3, 2)
         self.conv1 = nn.Sequential(Conv(8, 16, 3),
                                    ADown(16, 16),
-                                   nn.Upsample(scale_factor=2),
-                                   SPPELAN(16, 16, 8),
-                                   Conv(16, 8, 3),
-                                   ADown(8, 8),
-                                   nn.Upsample(scale_factor=2)
+                                   Conv(16, 8, 3)
                                    )
-        self.conv_out = Conv(8, 3, 3, 2, act=False)  # 记得替换激活函数
+        self.conv_out = Conv(8, 3, 3, act=False)  # 记得替换激活函数
         self.sig = nn.Sigmoid()
-        self.linear1 = nn.Linear(32, 1)
+        self.linear = nn.Sequential(nn.Linear(64, 32),
+                                    nn.LeakyReLU(),
+                                    nn.Linear(32, 16),
+                                    nn.LeakyReLU(),
+                                    nn.Linear(16, 8),
+                                    nn.LeakyReLU(),
+                                    nn.Linear(8, 4),
+                                    nn.LeakyReLU(),
+                                    nn.Linear(4, 1)
+                                    )
 
     def forward(self, x):
         x1 = self.conv_in(x)
         x4 = self.conv_out(x1)
-        x = self.linear1(x4)
+        x = self.linear(x4)
         x = self.sig(x)
 
         return x
+
+
+if __name__ == '__main__':
+    model = Discriminator()
+    d_params, d_macs = model_structure(model, (2, 128, 128))
+    print(d_params, d_macs)
