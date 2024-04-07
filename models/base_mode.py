@@ -124,40 +124,47 @@ class Generator(nn.Module):
 
     def __init__(self) -> None:
         super(Generator, self).__init__()
-        self.in_channel = 1
-        self.out_channel = 2
-
-        self.conv_in = Conv(self.in_channel, 8 * self.in_channel, 3)
-        self.conv2 = EMA(8 * self.in_channel)
-        self.conv3 = C2f(8 * self.in_channel, 16 * self.in_channel, shortcut=True)
-        self.conv4 = C2f(16 * self.in_channel, 32 * self.in_channel)
-        self.conv5 = SPPELAN(32 * self.in_channel, 32 * self.in_channel, 16 * self.in_channel)
-        self.conv6 = C2f(48 * self.in_channel, 16 * self.in_channel)
-        self.conv7 = C2f(16 * self.in_channel, 8 * self.in_channel, shortcut=True)
-        self.conv8 = Conv(16 * self.in_channel, 8 * self.in_channel)
-        self.conv9 = C2f(8 * self.in_channel, 8 * self.in_channel)
-        self.conv_out = Conv(8 * self.in_channel, self.out_channel, 3, act=False)
+        self.conv1 = Conv(1, 8, 3)
+        self.conv2 = RepNCSPELAN4(8, 16, 16, 8)
+        self.conv3 = RepNCSPELAN4(16, 32, 32, 16)
+        self.conv4 = nn.Sequential(RepNCSPELAN4(32, 64, 64, 32),
+                                   RepNCSPELAN4(64, 128, 128, 64))
+        self.conv5 = SPPELAN(128, 128, 64)
+        self.conv6 = Conv(128, 64, 5, 2)
+        self.conv7 = Conv(80, 64, 3, 2)
+        self.conv8 = RepNCSPELAN4(192, 64, 64, 32)
+        self.conv9 = nn.Sequential(RepNCSPELAN4(64, 32, 32, 16),
+                                   RepNCSPELAN4(32, 16, 16, 8))
+        self.conv10 = nn.Sequential(Conv(16, 8, 3),
+                                    Conv(8 , 2, 3, act=False)
+                                    )
         self.tanh = nn.Tanh()
         self.concat = Concat()
+        self.upsample = nn.Upsample(scale_factor=2)
+        self.att = EMA(128)
 
     def forward(self, x):
-        x1 = self.conv_in(x)
+        # head net
+        x1 = self.conv1(x)
         x2 = self.conv2(x1)
         x3 = self.conv3(x2)
         x4 = self.conv4(x3)
+        x4 = self.att(x4)
         x5 = self.conv5(x4)
-        x5 = self.concat([x3, x5])
         x6 = self.conv6(x5)
-        x7 = self.conv7(x6)
-        x7 = self.concat([x2, x7])
-        x8 = self.conv8(x7)
-        x8 = self.conv9(x8)
-        x9 = self.conv_out(x8)
-        x10 = self.tanh(x9)
 
-        x = x10.view(-1, self.out_channel, x.shape[2], x.shape[3])
+        # neck net
+        x6 = self.upsample(x6)
+        x7 = self.concat([x2, x6])
+        x7 = self.conv7(x7)
+        x7 = self.upsample(x7)
+        x7 = self.concat([x5, x7])
+        x = self.conv8(x7)
+        x = self.conv9(x)
+        x = self.conv10(x)
+        x = self.tanh(x)
 
-        return x
+        x = x.view(-1, 2, x.shape[2], x.shape[3])
 
         return x
 
@@ -172,7 +179,7 @@ class Discriminator(nn.Module):
                                    )
         self.conv_out = Conv(8, 3, 3, 2)
         self.sig = nn.Sigmoid()
-        self.linear1 = nn.Linear(120, 1)
+        self.linear1 = nn.Linear(32, 1)
 
     def forward(self, x):
         x1 = self.conv_in(x)

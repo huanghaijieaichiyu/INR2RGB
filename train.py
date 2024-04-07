@@ -142,32 +142,33 @@ def train(self):
         d_epoch_loss = 0
         g_epoch_loss = 0
         # 断点训练参数设置
-        if self.resume is not None:
-            if isinstance(self.resume, str):
+        if self.resume != ['']:
 
-                g_path_checkpoint = self.resume[0]
-                d_path_checkpoint = self.resume[1]
 
-                g_checkpoint = torch.load(g_path_checkpoint)  # 加载断点
-                generator.load_state_dict(g_checkpoint['net'])
-                g_optimizer.load_state_dict(g_checkpoint['optimizer'])
-                g_epoch = g_checkpoint['epoch']  # 设置开始的epoch
-                loss.load_state_dict = g_checkpoint['loss']
+            g_path_checkpoint = self.resume[0]
+            d_path_checkpoint = self.resume[1]
 
-                d_checkpoint = torch.load(d_path_checkpoint)  # 加载断点
-                discriminator.load_state_dict(d_checkpoint['net'])
-                d_optimizer.load_state_dict(d_checkpoint['optimizer'])
-                d_epoch = d_checkpoint['epoch']  # 设置开始的epoch
-                loss.load_state_dict = d_checkpoint['loss']
+            g_checkpoint = torch.load(g_path_checkpoint)  # 加载断点
+            generator.load_state_dict(g_checkpoint['net'])
+            g_optimizer.load_state_dict(g_checkpoint['optimizer'])
+            g_epoch = g_checkpoint['epoch']  # 设置开始的epoch
+            loss.load_state_dict = g_checkpoint['loss']
 
-                if g_epoch != d_epoch:
-                    print('given models are mismatched')
-                    raise NotImplementedError
+            d_checkpoint = torch.load(d_path_checkpoint)  # 加载断点
+            discriminator.load_state_dict(d_checkpoint['net'])
+            d_optimizer.load_state_dict(d_checkpoint['optimizer'])
+            d_epoch = d_checkpoint['epoch']  # 设置开始的epoch
+            loss.load_state_dict = d_checkpoint['loss']
 
-                epoch = g_epoch
+            if g_epoch != d_epoch:
+                print('given models are mismatched')
+                raise NotImplementedError
 
-                print('继续第：{}轮训练'.format(epoch + 1))
+            epoch = g_epoch
 
+            print('继续第：{}轮训练'.format(epoch + 1))
+
+            self.resume = ['']    # 跳出循环
         print('第{}轮训练'.format(epoch + 1))
         pbar = tqdm(enumerate(train_loader), total=len(train_loader), bar_format='{l_bar}{bar:10}| {n_fmt}/{'
                                                                                  'total_fmt} {elapsed}')
@@ -187,7 +188,7 @@ def train(self):
             img_gray = img_gray.to(device)'''
 
             with autocast(enabled=self.amp):
-                '''---------------延时训练判别模型---------------'''
+                '''---------------训练判别模型---------------'''
                 real_outputs = discriminator(color / lamb)
                 fake = generator(gray)  # 记得输入要换成明度！！！
                 fake_outputs = discriminator(fake)
@@ -207,7 +208,7 @@ def train(self):
                 fake_inputs = discriminator(fake)
                 g_dis = loss(fake_inputs, torch.ones_like(fake_inputs))  # G 希望 fake_loss 为 1
                 g_gen = mse(fake, color / lamb)  # 加上生成损失
-                g_output = (g_dis + g_gen) * 0.5
+                g_output = g_dis + g_gen * 10
                 g_output.backward()
                 g_optimizer.step()
 
@@ -281,16 +282,16 @@ def parse_args():
     parser = argparse.ArgumentParser()  # 命令行选项、参数和子命令解析器
     parser.add_argument("--data", type=str, default='../datasets/coco_2k', help="path to dataset", required=True)
     parser.add_argument("--epochs", type=int, default=1000, help="number of epochs of training")  # 迭代次数
-    parser.add_argument("--batch_size", type=int, default=8, help="size of the batches")  # batch大小
-    parser.add_argument("--img_size", type=tuple, default=(480, 480), help="size of the image")
+    parser.add_argument("--batch_size", type=int, default=16, help="size of the batches")  # batch大小
+    parser.add_argument("--img_size", type=tuple, default=(128, 128), help="size of the image")
     parser.add_argument("--optimizer", type=str, default='AdamW', choices=['AdamW', 'SGD', 'Adam', 'lion', 'rmp'])
-    parser.add_argument("--num_workers", type=int, default=12,
+    parser.add_argument("--num_workers", type=int, default=10,
                         help="number of data loading workers, if in windows, must be 0"
                         )
     parser.add_argument("--seed", type=int, default=1999, help="random seed")
-    parser.add_argument("--resume", type=tuple, default=[], help="path to two latest checkpoint,yes or no")
+    parser.add_argument("--resume", type=tuple, default=[''], help="path to two latest checkpoint,yes or no")
     parser.add_argument("--amp", type=bool, default=True, help="Whether to use amp in mixed precision")
-    parser.add_argument("--loss", type=str, default='BCEBlurWithLogitsLoss',
+    parser.add_argument("--loss", type=str, default='bce',
                         choices=['BCEBlurWithLogitsLoss', 'mse', 'bce',
                                  'FocalLoss'],
                         help="loss function")
