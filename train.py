@@ -197,7 +197,7 @@ def train(self):
 
                 d_fake_output = loss(fake_outputs, torch.zeros_like(fake_outputs))  # D 希望 fake_loss 为 0
 
-                d_output = (d_real_output + d_fake_output) * 0.5
+                d_output = d_real_output + d_fake_output
                 d_output.backward()
                 d_optimizer.step()
 
@@ -206,8 +206,8 @@ def train(self):
                 g_optimizer.zero_grad()
                 fake_inputs = discriminator(fake)
                 g_dis = loss(fake_inputs, torch.ones_like(fake_inputs))  # G 希望 fake_loss 为 1
-                g_gen = mse(fake, color / lamb)# 加上生成损失
-                g_output = g_dis + g_gen * 0.5
+                g_gen = mse(fake, color / lamb)  # 加上生成损失
+                g_output = g_dis + g_gen
                 g_output.backward()
                 g_optimizer.step()
 
@@ -294,7 +294,7 @@ def parse_args():
                         choices=['BCEBlurWithLogitsLoss', 'mse', 'bce',
                                  'FocalLoss'],
                         help="loss function")
-    parser.add_argument("--lr", type=float, default=1e-3, help="learning rate, for adam is 1-e3, SGD is 1-e2")  # 学习率
+    parser.add_argument("--lr", type=float, default=8.5e-4, help="learning rate, for adam is 1-e3, SGD is 1-e2")  # 学习率
     parser.add_argument("--momentum", type=float, default=0.9, help="momentum for adam and SGD")
     parser.add_argument("--model", type=str, default="train", help="train or test model")
     parser.add_argument("--b1", type=float, default=0.9,
