@@ -13,8 +13,7 @@ class Generator(nn.Module):
         self.conv3 = RepNCSPELAN4(16, 32, 32, 16)
         self.conv4 = nn.Sequential(RepNCSPELAN4(32, 64, 64, 32),
                                    EMA(64),
-                                   Conv(64, 128, 3, 2),
-                                   nn.Upsample(scale_factor=2))
+                                   Conv(64, 128, 3))
         self.conv5 = SPPELAN(128, 128, 64)
         self.conv6 = nn.Sequential(Conv(128, 64, 5),
                                    ADown(64, 64),
@@ -68,7 +67,7 @@ class Discriminator(nn.Module):
                                    ADown(8, 8),
                                    nn.Upsample(scale_factor=2)
                                    )
-        self.conv_out = Conv(8, 3, 3, 2)
+        self.conv_out = Conv(8, 3, 3, 2, act=False)  # 记得替换激活函数
         self.sig = nn.Sigmoid()
         self.linear1 = nn.Linear(32, 1)
 

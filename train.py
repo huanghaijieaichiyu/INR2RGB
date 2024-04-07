@@ -245,7 +245,7 @@ def train(self):
                     fake_outputs))  # D 希望 fake_loss 为 0
                 d_fake_output.backward()
 
-                d_output = (d_real_output + d_fake_output) * 0.5
+                d_output = d_real_output + d_fake_output
                 d_output.backward()
                 d_optimizer.step()
 
