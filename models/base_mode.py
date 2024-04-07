@@ -3,7 +3,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 from models.Conv2dSAME import Conv2dSame
-from models.common import Conv, C2f, CA, SPPELAN, RepNCSPELAN4, Concat, EMA
+from models.common import Conv, C2f, CA, SPPELAN, RepNCSPELAN4, Concat, EMA, ADown
 
 
 # 模型体量太小的话，显卡占用会很低
@@ -88,18 +88,24 @@ class ConvertV2(nn.Module):
     def __init__(self) -> None:
         super(ConvertV2, self).__init__()
         self.conv_in = Conv(1, 8, 3)
-        self.conv2 = EMA(8)
+        self.conv2 = ADown(8, 8)
         self.conv3 = nn.Sequential(C2f(8, 16, shortcut=True),
                                    Conv(16, 32, 3)
                                    )
         self.conv4 = nn.Sequential(C2f(32, 64),
                                    Conv(64, 128, 3)
                                    )
-        self.conv5 = SPPELAN(128, 128, 64)
+        self.conv5 = nn.Sequential(SPPELAN(128, 128, 64),
+                                   ADown(128, 128),
+                                   nn.Upsample(scale_factor=2))
         self.conv6 = nn.Sequential(C2f(160, 128),
-                                   Conv(128, 64, 3))
+                                   RepNCSPELAN4(128, 64, 64, 32),
+                                   ADown(64, 64),
+                                   nn.Upsample(scale_factor=2))
         self.conv7 = nn.Sequential(C2f(64, 32, shortcut=True),
-                                   Conv(32, 16, 3))
+                                   RepNCSPELAN4(32, 16, 16, 8),
+                                   ADown(16, 16),
+                                   nn.Upsample(scale_factor=2))
         self.conv8 = Conv(24, 8, 3)
         self.conv_out = Conv(8, 2, 3, act=False)
         self.tanh = nn.Tanh()
