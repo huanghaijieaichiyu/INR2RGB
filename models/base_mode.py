@@ -32,7 +32,6 @@ class Generator(nn.Module):
                                     )
         self.tanh = nn.Tanh()
         self.concat = Concat()
-        self.upsample = nn.Upsample(scale_factor=2)
 
     def forward(self, x):
         # head net
