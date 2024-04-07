@@ -17,6 +17,7 @@ from tqdm import tqdm
 
 from datasets.data_set import MyDataset
 from models.base_mode import ConvertV1, ConvertV2, BaseModel
+from utils.colorful import myPSrgb2lab
 from utils.img_progress import process_image
 from utils.loss import BCEBlurWithLogitsLoss
 from utils.model_map import model_structure
@@ -137,13 +138,17 @@ def train(self):
         for data in pbar:
             target, (img, label) = data
 
-            img = img.to(device)
-            gray = img_gray(img)
+            img_lab = myPSrgb2lab(img)
+            gray, a, b = torch.split(img_lab, 1, 1)
+            color = torch.cat([a, b], dim=1)
+            lamb = 1 / 128.  # 取绝对值最大值，避免负数超出索引
+            gray = gray.to(device)
+            color = color.to(device)
 
             optimizer.zero_grad()
             with autocast(enabled=self.amp):
                 fake = mode(gray)
-                output = loss(fake, img)  # ---大坑--损失函数计算必须全是tensor
+                output = loss(fake, color * lamb)  # ---大坑--损失函数计算必须全是tensor
                 output.backward()
                 optimizer.step()
 
