@@ -144,7 +144,6 @@ def train(self):
         # 断点训练参数设置
         if self.resume != ['']:
 
-
             g_path_checkpoint = self.resume[0]
             d_path_checkpoint = self.resume[1]
 
@@ -168,7 +167,7 @@ def train(self):
 
             print('继续第：{}轮训练'.format(epoch + 1))
 
-            self.resume = ['']    # 跳出循环
+            self.resume = ['']  # 跳出循环
         print('第{}轮训练'.format(epoch + 1))
         pbar = tqdm(enumerate(train_loader), total=len(train_loader), bar_format='{l_bar}{bar:10}| {n_fmt}/{'
                                                                                  'total_fmt} {elapsed}')
@@ -207,8 +206,8 @@ def train(self):
                 g_optimizer.zero_grad()
                 fake_inputs = discriminator(fake)
                 g_dis = loss(fake_inputs, torch.ones_like(fake_inputs))  # G 希望 fake_loss 为 1
-                g_gen = mse(fake, color / lamb)  # 加上生成损失
-                g_output = g_dis + g_gen * 10
+                g_gen = mse(fake, color / lamb)# 加上生成损失
+                g_output = g_dis + g_gen * 0.5
                 g_output.backward()
                 g_optimizer.step()
 
@@ -284,18 +283,18 @@ def parse_args():
     parser.add_argument("--epochs", type=int, default=1000, help="number of epochs of training")  # 迭代次数
     parser.add_argument("--batch_size", type=int, default=16, help="size of the batches")  # batch大小
     parser.add_argument("--img_size", type=tuple, default=(128, 128), help="size of the image")
-    parser.add_argument("--optimizer", type=str, default='lion', choices=['AdamW', 'SGD', 'Adam', 'lion', 'rmp'])
+    parser.add_argument("--optimizer", type=str, default='Adam', choices=['AdamW', 'SGD', 'Adam', 'lion', 'rmp'])
     parser.add_argument("--num_workers", type=int, default=10,
                         help="number of data loading workers, if in windows, must be 0"
                         )
     parser.add_argument("--seed", type=int, default=1999, help="random seed")
     parser.add_argument("--resume", type=tuple, default=[''], help="path to two latest checkpoint,yes or no")
     parser.add_argument("--amp", type=bool, default=True, help="Whether to use amp in mixed precision")
-    parser.add_argument("--loss", type=str, default='BCEBlurWithLogitsLoss',
+    parser.add_argument("--loss", type=str, default='bce',
                         choices=['BCEBlurWithLogitsLoss', 'mse', 'bce',
                                  'FocalLoss'],
                         help="loss function")
-    parser.add_argument("--lr", type=float, default=1e-4, help="learning rate, for adam is 1-e3, SGD is 1-e2")  # 学习率
+    parser.add_argument("--lr", type=float, default=1e-3, help="learning rate, for adam is 1-e3, SGD is 1-e2")  # 学习率
     parser.add_argument("--momentum", type=float, default=0.9, help="momentum for adam and SGD")
     parser.add_argument("--model", type=str, default="train", help="train or test model")
     parser.add_argument("--b1", type=float, default=0.9,
