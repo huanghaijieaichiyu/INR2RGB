@@ -71,12 +71,11 @@ class ConvertV1(nn.Module):
         x7 = self.concat([x2, x6])
         x7 = self.conv7(x7)
         x7 = self.concat([x5, x7])
-        x = self.conv8(x7)
-        x = self.conv9(x)
-        x = self.tanh(x)
+        x8 = self.conv8(x7)
+        x9 = self.conv9(x8)
+        x10 = self.tanh(x9)
 
-        x = x.view(-1, 2, 480, 480)
-        x = torch.permute(x, (0, 2, 3, 1))
+        x = x10.view(-1, 2, x.shape[2], x.shape[3])
 
         return x
 
@@ -88,13 +87,19 @@ class ConvertV2(nn.Module):
 
     def __init__(self) -> None:
         super(ConvertV2, self).__init__()
-        self.conv_in = Conv(1, 8)
+        self.conv_in = Conv(1, 8, 3)
         self.conv2 = EMA(8)
-        self.conv3 = C2f(8, 16, shortcut=True)
-        self.conv4 = C2f(16, 32)
-        self.conv5 = SPPELAN(32, 32, 16)
-        self.conv6 = C2f(48, 16)
-        self.conv7 = C2f(16, 8, shortcut=True)
+        self.conv3 = nn.Sequential(C2f(8, 16, shortcut=True),
+                                   Conv(16, 32, 3, 2),
+                                   nn.Upsample(scale_factor=2))
+        self.conv4 = nn.Sequential(C2f(32, 64),
+                                   Conv(64, 128, 3, 2),
+                                   nn.Upsample(scale_factor=2))
+        self.conv5 = SPPELAN(128, 128, 64)
+        self.conv6 = nn.Sequential(C2f(160, 128),
+                                   Conv(128, 64, 3))
+        self.conv7 = nn.Sequential(C2f(64, 32, shortcut=True),
+                                   Conv(32, 16, 3))
         self.conv8 = Conv(16, 8)
         self.conv_out = Conv(8, 3, act=False)
         self.tanh = nn.Tanh()
