@@ -189,29 +189,30 @@ def train(self):
         if self.resume is not None:
             if isinstance(self.resume, str):
 
-                g_path_checkpoint = self.resume[0]
-                d_path_checkpoint = self.resume[1]
+            g_path_checkpoint = self.resume[0]
+            d_path_checkpoint = self.resume[1]
 
-                g_checkpoint = torch.load(g_path_checkpoint)  # 加载断点
-                generator.load_state_dict(g_checkpoint['net'])
-                g_optimizer.load_state_dict(g_checkpoint['optimizer'])
-                g_epoch = g_checkpoint['epoch']  # 设置开始的epoch
-                loss.load_state_dict = g_checkpoint['loss']
+            g_checkpoint = torch.load(g_path_checkpoint)  # 加载断点
+            generator.load_state_dict(g_checkpoint['net'])
+            g_optimizer.load_state_dict(g_checkpoint['optimizer'])
+            g_epoch = g_checkpoint['epoch']  # 设置开始的epoch
+            loss.load_state_dict = g_checkpoint['loss']
 
-                d_checkpoint = torch.load(d_path_checkpoint)  # 加载断点
-                discriminator.load_state_dict(d_checkpoint['net'])
-                d_optimizer.load_state_dict(d_checkpoint['optimizer'])
-                d_epoch = d_checkpoint['epoch']  # 设置开始的epoch
-                loss.load_state_dict = d_checkpoint['loss']
+            d_checkpoint = torch.load(d_path_checkpoint)  # 加载断点
+            discriminator.load_state_dict(d_checkpoint['net'])
+            d_optimizer.load_state_dict(d_checkpoint['optimizer'])
+            d_epoch = d_checkpoint['epoch']  # 设置开始的epoch
+            loss.load_state_dict = d_checkpoint['loss']
 
-                if g_epoch != d_epoch:
-                    print('given models are mismatched')
-                    raise NotImplementedError
+            if g_epoch != d_epoch:
+                print('given models are mismatched')
+                raise NotImplementedError
 
-                epoch = g_epoch
+            epoch = g_epoch
 
-                print('继续第：{}轮训练'.format(epoch + 1))
+            print('继续第：{}轮训练'.format(epoch + 1))
 
+            self.resume = ['']    # 跳出循环
         print('第{}轮训练'.format(epoch + 1))
         pbar = tqdm(enumerate(train_loader), total=len(train_loader), bar_format='{l_bar}{bar:10}| {n_fmt}/{'
                                                                                  'total_fmt} {elapsed}')
@@ -231,7 +232,7 @@ def train(self):
             img_gray = img_gray.to(device)'''
 
             with autocast(enabled=self.amp):
-                '''---------------延时训练判别模型---------------'''
+                '''---------------训练判别模型---------------'''
                 real_outputs = discriminator(color / lamb)
                 fake = generator(gray)  # 记得输入要换成明度！！！
                 fake_outputs = discriminator(fake)
@@ -256,7 +257,7 @@ def train(self):
                 g_dis = loss(fake_inputs, torch.ones_like(
                     fake_inputs))  # G 希望 fake_loss 为 1
                 g_gen = mse(fake, color / lamb)  # 加上生成损失
-                g_output = (g_dis + g_gen) * 0.5
+                g_output = g_dis + g_gen * 10
                 g_output.backward()
                 g_optimizer.step()
 
