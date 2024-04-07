@@ -146,7 +146,7 @@ def train(self):
             optimizer.zero_grad()
             with autocast(enabled=self.amp):
                 fake = mode(gray)
-                output = loss(fake / lamb, color)
+                output = loss(fake, color * lamb)
                 output.backward()
                 optimizer.step()
 
@@ -212,13 +212,14 @@ def parse_args():
     parser.add_argument("--seed", type=int, default=1999, help="random seed")
     parser.add_argument("--resume", type=str, default='', help="path to latest checkpoint,yes or no")
     parser.add_argument("--amp", type=bool, default=True, help="Whether to use amp in mixed precision")
-    parser.add_argument("--loss", type=str, default='mse', choices=['BCEBlurWithLogitsLoss', 'mse', 'bce',
-                                                                    'SoftTargetCrossEntropy'],
+    parser.add_argument("--loss", type=str, default='BCEBlurWithLogitsLoss',
+                        choices=['BCEBlurWithLogitsLoss', 'mse', 'bce',
+                                 'SoftTargetCrossEntropy'],
                         help="loss function")
-    parser.add_argument("--lr", type=float, default=8.4e-4, help="learning rate, for adam is 1-e3, SGD is 1-e2")  # 学习率
+    parser.add_argument("--lr", type=float, default=1e-3, help="learning rate, for adam is 1-e3, SGD is 1-e2")  # 学习率
     parser.add_argument("--momentum", type=float, default=0.9, help="momentum for adam and SGD")
     parser.add_argument("--model", type=str, default="train", help="train or test model")
-    parser.add_argument("--b1", type=float, default=0.5,
+    parser.add_argument("--b1", type=float, default=0.9,
                         help="adam: decay of first order momentum of gradient")  # 动量梯度下降第一个参数
     parser.add_argument("--b2", type=float, default=0.999,
                         help="adam: decay of first order momentum of gradient")  # 动量梯度下降第二个参数

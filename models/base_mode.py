@@ -87,44 +87,49 @@ class ConvertV2(nn.Module):
 
     def __init__(self) -> None:
         super(ConvertV2, self).__init__()
-        self.conv_in = Conv(1, 8, 3)
-        self.conv2 = ADown(8, 8)
-        self.conv3 = nn.Sequential(C2f(8, 16, shortcut=True),
-                                   Conv(16, 32, 3)
-                                   )
-        self.conv4 = nn.Sequential(C2f(32, 64),
-                                   Conv(64, 128, 3)
-                                   )
-        self.conv5 = nn.Sequential(SPPELAN(128, 128, 64),
-                                   ADown(128, 128),
+        self.conv1 = Conv(1, 8, 3)
+        self.conv2 = RepNCSPELAN4(8, 16, 16, 8)
+        self.conv3 = RepNCSPELAN4(16, 32, 32, 16)
+        self.conv4 = nn.Sequential(RepNCSPELAN4(32, 64, 64, 32),
+                                   EMA(64),
+                                   Conv(64, 128, 3, 2),
                                    nn.Upsample(scale_factor=2))
-        self.conv6 = nn.Sequential(C2f(160, 128),
-                                   RepNCSPELAN4(128, 64, 64, 32),
+        self.conv5 = SPPELAN(128, 128, 64)
+        self.conv6 = nn.Sequential(Conv(128, 64, 5),
                                    ADown(64, 64),
                                    nn.Upsample(scale_factor=2))
-        self.conv7 = nn.Sequential(C2f(64, 32, shortcut=True),
-                                   RepNCSPELAN4(32, 16, 16, 8),
-                                   ADown(16, 16),
+        self.conv7 = nn.Sequential(Conv(80, 64, 3),
+                                   ADown(64, 64),
                                    nn.Upsample(scale_factor=2))
-        self.conv8 = Conv(24, 8, 3)
-        self.conv_out = Conv(8, 2, 3, act=False)
+        self.conv8 = nn.Sequential(Conv(192, 64, 3),
+                                   ADown(64, 64),
+                                   nn.Upsample(scale_factor=2))
+        self.conv9 = nn.Sequential(Conv(64, 32, 3),
+                                   Conv(32, 16, 3))
+        self.conv10 = nn.Sequential(Conv(16, 8, 3),
+                                    Conv(8, 2, 3, act=False)
+                                    )
         self.tanh = nn.Tanh()
         self.concat = Concat()
 
     def forward(self, x):
-        x1 = self.conv_in(x)
-
-        x3 = self.conv3(x1)
+        # head net
+        x1 = self.conv1(x)
+        x2 = self.conv2(x1)
+        x3 = self.conv3(x2)
         x4 = self.conv4(x3)
         x5 = self.conv5(x4)
-        x5 = self.concat([x3, x5])
         x6 = self.conv6(x5)
-        x7 = self.conv7(x6)
-        x7 = self.concat([x1, x7])
-        x8 = self.conv8(x7)
-        x9 = self.conv_out(x8)
-        x10 = self.tanh(x9)
 
-        x = x10.view(-1, 2 * x.shape[1], x.shape[2], x.shape[3])
+        # neck net
+        x7 = self.concat([x2, x6])
+        x7 = self.conv7(x7)
+        x7 = self.concat([x5, x7])
+        x = self.conv8(x7)
+        x = self.conv9(x)
+        x = self.conv10(x)
+        x = self.tanh(x)
+
+        x = x.view(-1, 2, x.shape[2], x.shape[3])
 
         return x
