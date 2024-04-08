@@ -58,14 +58,19 @@ class Discriminator(nn.Module):
     """
     def __init__(self):
         super(Discriminator, self).__init__()
-        self.conv_in = Conv(2, 16, 3)
-        self.conv1 = nn.Sequential(Conv(16, 32, 3, 2),
+        self.conv_in = nn.Sequential(Conv(2, 16, 3, act=False),
+                                     nn.LeakyReLU())
+        self.conv1 = nn.Sequential(Conv(16, 32, 3, 2, act=False),
+                                   nn.LeakyReLU(),
                                    nn.MaxPool2d(3, 2, 1),
-                                   Conv(32, 16, 3, 2),
+                                   Conv(32, 16, 3, 2, act=False),
+                                   nn.LeakyReLU(),
                                    nn.MaxPool2d(3, 2, 1),
-                                   Conv(16, 8, 3, 2),
+                                   Conv(16, 8, 3, 2, act=False),
+                                   nn.LeakyReLU(),
                                    nn.MaxPool2d(3, 2, 1),
-                                   Conv(8, 4, 3, 2),
+                                   Conv(8, 4, 3, 2, act=False),
+                                   nn.LeakyReLU(),
                                    nn.MaxPool2d(3, 2, 1)
                                    )
         self.conv_out = Conv(4, 1, 3, act=False)  # 记得替换激活函数
