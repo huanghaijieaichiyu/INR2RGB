@@ -12,18 +12,15 @@ class Generator(nn.Module):
         self.conv1 = Conv(1, 8, 3)
         self.conv2 = RepNCSPELAN4(8, 16, 16, 8)
         self.conv3 = RepNCSPELAN4(16, 32, 32, 16)
-        self.conv4 = nn.Sequential(RepNCSPELAN4(32, 64, 64, 32),
-                                   Conv(64, 128, 3))
-        self.conv5 = SPPF(128, 128, 3)
-        self.conv6 = nn.Sequential(Conv(128, 64, 3),
-                                   ADown(64, 64),
+        self.conv4 = nn.Sequential(RepNCSPELAN4(32, 64, 64, 32)
+                                   )
+        self.conv5 = SPPELAN(64, 64, 32)
+        self.conv6 = nn.Sequential(ADown(64, 64),
                                    nn.Upsample(scale_factor=2))
         self.conv7 = nn.Sequential(Conv(80, 64, 3),
                                    ADown(64, 64),
                                    nn.Upsample(scale_factor=2))
-        self.conv8 = nn.Sequential(Conv(192, 64, 3),
-                                   ADown(64, 64),
-                                   nn.Upsample(scale_factor=2))
+        self.conv8 = nn.Sequential(Conv(128, 64, 3))
         self.conv9 = nn.Sequential(Conv(64, 32, 3),
                                    Conv(32, 16, 3))
         self.conv10 = nn.Sequential(Conv(16, 8, 3),
@@ -56,16 +53,22 @@ class Generator(nn.Module):
 
 
 class Discriminator(nn.Module):
+    """
+    Discriminator model with no activation function
+    """
     def __init__(self):
         super(Discriminator, self).__init__()
-        self.conv_in = Conv(2, 8, 3, 2)
-        self.conv1 = nn.Sequential(Conv(8, 16, 3, 2),
-                                   ADown(16, 16),
+        self.conv_in = Conv(2, 16, 3)
+        self.conv1 = nn.Sequential(Conv(16, 32, 3, 2),
+                                   nn.MaxPool2d(3, 2, 1),
+                                   Conv(32, 16, 3, 2),
+                                   nn.MaxPool2d(3, 2, 1),
                                    Conv(16, 8, 3, 2),
-                                   ADown(8, 8),
-                                   Conv(8, 4, 3, 2)
+                                   nn.MaxPool2d(3, 2, 1),
+                                   Conv(8, 4, 3, 2),
+                                   nn.MaxPool2d(3, 2, 1)
                                    )
-        self.conv_out = Conv(8, 1, 3, 2, act=False)  # 记得替换激活函数
+        self.conv_out = Conv(4, 1, 3, act=False)  # 记得替换激活函数
         self.flatten = nn.Flatten()
         self.sig = nn.Sigmoid()
         self.linear = nn.Sequential(nn.Linear(1024, 512),
@@ -85,15 +88,16 @@ class Discriminator(nn.Module):
 
     def forward(self, x):
         x1 = self.conv_in(x)
-        x4 = self.conv_out(x1)
-        x5 = self.flatten(x4)
-        x = self.linear(x5)
-        x = self.sig(x)
+        x2 = self.conv1(x1)
+        x3 = self.conv_out(x2)
+        # x4 = self.flatten(x3)
+        # x5 = self.linear(x4)  # 此处切换全连接 或者 深度卷积层
+        x = self.sig(x3)
 
         return x
 
 
 if __name__ == '__main__':
     model = Discriminator()
-    d_params, d_macs = model_structure(model, (2, 128, 128))
+    d_params, d_macs = model_structure(model, (2, 256, 256))
     print(d_params, d_macs)
