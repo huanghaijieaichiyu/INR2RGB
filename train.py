@@ -245,7 +245,7 @@ def train(self):
                     fake_outputs))  # D 希望 fake_loss 为 0
                 d_fake_output.backward()
 
-                d_output = (d_real_output + d_fake_output) * 0.5
+                d_output = d_real_output + d_fake_output
                 d_output.backward()
                 d_optimizer.step()
 
@@ -264,9 +264,6 @@ def train(self):
                 g_output.backward()
                 g_optimizer.step()
 
-            d_epoch_loss += d_output
-            g_epoch_loss += g_output
-            total_loss = (d_epoch_loss + g_epoch_loss) / len(train_loader)
             # 图像拼接还原
             fake_img = np.zeros(
                 (self.img_size[0], self.img_size[1], 3), dtype=np.float32)
@@ -288,9 +285,9 @@ def train(self):
 
             pbar.set_description("Epoch [%d/%d] ----------- Batch [%d/%d] -----------  Generator loss: %.4f "
                                  "-----------  Discriminator loss: %.4f-----------"
-                                 "-----------Total loss: %.4f-----------PSN: %.4f"
+                                 "-----------PSN: %.4f"
                                  % (epoch + 1, self.epochs, target + 1, len(train_loader), g_output.item(),
-                                    d_output.item(), total_loss, psn))
+                                    d_output.item(), psn))
 
         g_checkpoint = {
             'net': generator.state_dict(),
@@ -304,12 +301,6 @@ def train(self):
             'epoch': epoch,
             'loss': loss.state_dict()
         }
-        # 训练日志写入
-        log.add_scalar('Total loss', total_loss, epoch)
-        log.add_scalar('generator total loss', g_output.item(), epoch)
-        log.add_scalar('discriminator total loss', d_output.item(), epoch)
-        log.add_scalar('generator_PSNR', psn, epoch)
-
         # 保持最佳模型
 
         if g_output.item() < min(loss_all):

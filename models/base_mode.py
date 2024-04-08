@@ -12,17 +12,16 @@ class Generator(nn.Module):
         self.conv1 = Conv(1, 8, 3)
         self.conv2 = RepNCSPELAN4(8, 16, 16, 8)
         self.conv3 = RepNCSPELAN4(16, 32, 32, 16)
-        self.conv4 = nn.Sequential(RepNCSPELAN4(32, 64, 64, 32),
-                                   C2f(64, 128)
+        self.conv4 = nn.Sequential(RepNCSPELAN4(32, 64, 64, 32)
                                    )
-        self.conv5 = SPPELAN(128, 128, 64)
-        self.conv6 = nn.Sequential(Conv(128, 64),
+        self.conv5 = SPPELAN(64, 64, 32)
+        self.conv6 = nn.Sequential(
                                    ADown(64, 64),
                                    nn.Upsample(scale_factor=2))
         self.conv7 = nn.Sequential(Conv(80, 64),
                                    ADown(64, 64),
                                    nn.Upsample(scale_factor=2))
-        self.conv8 = nn.Sequential(Conv(192, 64, 3))
+        self.conv8 = nn.Sequential(Conv(128, 64, 3))
         self.conv9 = nn.Sequential(C2f(64, 32),
                                    Conv(32, 16, 3))
         self.conv10 = nn.Sequential(C2f(16, 8),
