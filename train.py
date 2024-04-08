@@ -54,7 +54,8 @@ def train(self):
     log = tensorboard.SummaryWriter(log_dir=os.path.join(self.save_path, 'tensorboard'),
                                     filename_suffix=str(self.epochs),
                                     flush_secs=180)
-    set_random_seed(self.seed, deterministic=self.deterministic, benchmark=self.benchmark)
+    set_random_seed(self.seed, deterministic=self.deterministic,
+                    benchmark=self.benchmark)
 
     # 选择模型参数
 
@@ -64,13 +65,16 @@ def train(self):
     print('-' * 100)
     print('Drawing model graph to tensorboard, you can check it with:http://127.0.0.1:6006 after running tensorboard '
           '--logdir={}'.format(os.path.join(self.save_path, 'tensorboard')))
-    log.add_graph(generator, torch.randn(1, 1, self.img_size[0], self.img_size[1]))
+    log.add_graph(generator, torch.randn(
+        1, 1, self.img_size[0], self.img_size[1]))
     print('Drawing dnoe!')
     print('-' * 100)
     print('Generator model info: \n')
-    g_params, g_macs = model_structure(generator, img_size=(1, self.img_size[0], self.img_size[1]))
+    g_params, g_macs = model_structure(
+        generator, img_size=(1, self.img_size[0], self.img_size[1]))
     print('Discriminator model info: \n')
-    d_params, d_macs = model_structure(discriminator, img_size=(2, self.img_size[0], self.img_size[1]))
+    d_params, d_macs = model_structure(
+        discriminator, img_size=(2, self.img_size[0], self.img_size[1]))
     generator = generator.to(device)
     discriminator = discriminator.to(device)
     # 打印配置
@@ -99,17 +103,25 @@ def train(self):
     assert len(train_loader) != 0, 'no data loaded'
 
     if self.optimizer == 'AdamW':
-        g_optimizer = torch.optim.AdamW(params=generator.parameters(), lr=self.lr, betas=(self.b1, self.b2))
-        d_optimizer = torch.optim.AdamW(params=discriminator.parameters(), lr=self.lr, betas=(self.b1, self.b2))
+        g_optimizer = torch.optim.AdamW(
+            params=generator.parameters(), lr=self.lr, betas=(self.b1, self.b2))
+        d_optimizer = torch.optim.AdamW(
+            params=discriminator.parameters(), lr=self.lr, betas=(self.b1, self.b2))
     elif self.optimizer == 'Adam':
-        g_optimizer = torch.optim.Adam(params=generator.parameters(), lr=self.lr, betas=(self.b1, self.b2))
-        d_optimizer = torch.optim.Adam(params=discriminator.parameters(), lr=self.lr, betas=(self.b1, self.b2))
+        g_optimizer = torch.optim.Adam(
+            params=generator.parameters(), lr=self.lr, betas=(self.b1, self.b2))
+        d_optimizer = torch.optim.Adam(
+            params=discriminator.parameters(), lr=self.lr, betas=(self.b1, self.b2))
     elif self.optimizer == 'SGD':
-        g_optimizer = torch.optim.SGD(params=generator.parameters(), lr=self.lr, momentum=self.momentum)
-        d_optimizer = torch.optim.SGD(params=discriminator.parameters(), lr=self.lr, momentum=self.momentum)
+        g_optimizer = torch.optim.SGD(
+            params=generator.parameters(), lr=self.lr, momentum=self.momentum)
+        d_optimizer = torch.optim.SGD(
+            params=discriminator.parameters(), lr=self.lr, momentum=self.momentum)
     elif self.optimizer == 'lion':
-        g_optimizer = Lion(params=generator.parameters(), lr=self.lr, betas=(self.b1, self.b2))
-        d_optimizer = Lion(params=discriminator.parameters(), lr=self.lr, betas=(self.b1, self.b2))
+        g_optimizer = Lion(params=generator.parameters(),
+                           lr=self.lr, betas=(self.b1, self.b2))
+        d_optimizer = Lion(params=discriminator.parameters(),
+                           lr=self.lr, betas=(self.b1, self.b2))
     elif self.optimizer == 'rmp':
         g_optimizer = RMSpropTF(params=generator.parameters(), lr=self.lr, momentum=self.momentum,
                                 lr_in_momentum=self.lr * self.momentum)
@@ -196,9 +208,11 @@ def train(self):
                 fake_outputs = discriminator(fake)
                 d_optimizer.zero_grad()
 
-                d_real_output = loss(real_outputs, torch.ones_like(real_outputs))  # D 希望 real_loss 为 1
+                d_real_output = loss(real_outputs, torch.ones_like(
+                    real_outputs))  # D 希望 real_loss 为 1
 
-                d_fake_output = loss(fake_outputs, torch.zeros_like(fake_outputs))  # D 希望 fake_loss 为 0
+                d_fake_output = loss(fake_outputs, torch.zeros_like(
+                    fake_outputs))  # D 希望 fake_loss 为 0
 
                 d_output = d_real_output + d_fake_output
                 d_output.backward()
@@ -208,19 +222,23 @@ def train(self):
                 fake = generator(gray)
                 g_optimizer.zero_grad()
                 fake_inputs = discriminator(fake)
-                g_output = loss(fake_inputs, torch.ones_like(fake_inputs))  # G 希望 fake_loss 为 1
+                g_output = loss(fake_inputs, torch.ones_like(
+                    fake_inputs))  # G 希望 fake_loss 为 1
                 g_output.backward()
                 g_optimizer.step()
 
             # 图像拼接还原
-            fake_tensor = torch.zeros((self.batch_size, 3, self.img_size[0], self.img_size[1]), dtype=torch.float32)
+            fake_tensor = torch.zeros(
+                (self.batch_size, 3, self.img_size[0], self.img_size[1]), dtype=torch.float32)
             fake_tensor[:, 0, :, :] = gray[:, 0, :, :]  # 主要切片位置
             fake_tensor[:, 1:, :, :] = lamb * fake
-            fake_img = np.array(img_pil(PSlab2rgb(fake_tensor)[0]), dtype=np.float32)
+            fake_img = np.array(
+                img_pil(PSlab2rgb(fake_tensor)[0]), dtype=np.float32)
             # print(fake_img)
             # 加入新的评价指标：PSN,SSIM
             real_pil = img_pil(img[0])
-            psn = peak_signal_noise_ratio(np.array(real_pil, dtype=np.float32) / 255., fake_img / 255., data_range=1)
+            psn = peak_signal_noise_ratio(
+                np.array(real_pil, dtype=np.float32) / 255., fake_img / 255., data_range=1)
 
             pbar.set_description("Epoch [%d/%d] ----------- Batch [%d/%d] -----------  Generator loss: %.4f "
                                  "-----------  Discriminator loss: %.4f-----------"
@@ -253,7 +271,8 @@ def train(self):
         # 写入日志文件
         to_write = train_log_txt_formatter.format(time_str=time.strftime("%Y_%m_%d_%H:%M:%S"),
                                                   epoch=epoch + 1,
-                                                  gloss_str=" ".join(["{:4f}".format(g_output.item())]),
+                                                  gloss_str=" ".join(
+                                                      ["{:4f}".format(g_output.item())]),
                                                   dloss_str=" ".join(["{:4f}".format(d_output.item())]))
         with open(train_log, "a") as f:
             f.write(to_write)
@@ -261,7 +280,8 @@ def train(self):
             # 5 epochs for saving another model
         if (epoch + 1) % 10 == 0 and (epoch + 1) >= 10:
             torch.save(g_checkpoint, path + '/generator/%d.pt' % (epoch + 1))
-            torch.save(d_checkpoint, path + '/discriminator/%d.pt' % (epoch + 1))
+            torch.save(d_checkpoint, path + '/discriminator/%d.pt' %
+                       (epoch + 1))
         # 可视化训练结果
         log.add_images('real', img, epoch + 1)
         log.add_images('fake', PSlab2rgb(fake_tensor), epoch + 1)
@@ -271,34 +291,46 @@ def train(self):
 
 def parse_args():
     parser = argparse.ArgumentParser()  # 命令行选项、参数和子命令解析器
-    parser.add_argument("--data", type=str, default='../datasets/coco_2k', help="path to dataset", required=True)
-    parser.add_argument("--epochs", type=int, default=1000, help="number of epochs of training")  # 迭代次数
-    parser.add_argument("--batch_size", type=int, default=8, help="size of the batches")  # batch大小
-    parser.add_argument("--img_size", type=tuple, default=(256, 256), help="size of the image")
-    parser.add_argument("--optimizer", type=str, default='Adam', choices=['AdamW', 'SGD', 'Adam', 'lion', 'rmp'])
+    parser.add_argument("--data", type=str,
+                        default='../datasets/coco5000', help="path to dataset")
+    parser.add_argument("--epochs", type=int, default=1000,
+                        help="number of epochs of training")  # 迭代次数
+    parser.add_argument("--batch_size", type=int, default=8,
+                        help="size of the batches")  # batch大小
+    parser.add_argument("--img_size", type=tuple,
+                        default=(256, 256), help="size of the image")
+    parser.add_argument("--optimizer", type=str, default='Adam',
+                        choices=['AdamW', 'SGD', 'Adam', 'lion', 'rmp'])
     parser.add_argument("--num_workers", type=int, default=20,
                         help="number of data loading workers, if in windows, must be 0"
                         )
     parser.add_argument("--seed", type=int, default=1999, help="random seed")
-    parser.add_argument("--resume", type=tuple, default=[''], help="path to two latest checkpoint,yes or no")
-    parser.add_argument("--amp", type=bool, default=True, help="Whether to use amp in mixed precision")
+    parser.add_argument("--resume", type=tuple,
+                        default=[''], help="path to two latest checkpoint,yes or no")
+    parser.add_argument("--amp", type=bool, default=True,
+                        help="Whether to use amp in mixed precision")
     parser.add_argument("--loss", type=str, default='bce',
                         choices=['BCEBlurWithLogitsLoss', 'mse', 'bce',
                                  'FocalLoss'],
                         help="loss function")
-    parser.add_argument("--lr", type=float, default=3.5e-4, help="learning rate, for adam is 1-e3, SGD is 1-e2")  # 学习率
-    parser.add_argument("--momentum", type=float, default=0.5, help="momentum for adam and SGD")
-    parser.add_argument("--model", type=str, default="train", help="train or test model")
+    parser.add_argument("--lr", type=float, default=3.5e-4,
+                        help="learning rate, for adam is 1-e3, SGD is 1-e2")  # 学习率
+    parser.add_argument("--momentum", type=float, default=0.5,
+                        help="momentum for adam and SGD")
+    parser.add_argument("--model", type=str, default="train",
+                        help="train or test model")
     parser.add_argument("--b1", type=float, default=0.5,
                         help="adam: decay of first order momentum of gradient")  # 动量梯度下降第一个参数
     parser.add_argument("--b2", type=float, default=0.999,
                         help="adam: decay of first order momentum of gradient")  # 动量梯度下降第二个参数
     parser.add_argument("--device", type=str, default='cuda', choices=['cpu', 'cuda'],
                         help="select your device to train, if you have a gpu, use 'cuda:0'!")  # 训练设备
-    parser.add_argument("--save_path", type=str, default='runs/', help="where to save your data")  # 保存位置
+    parser.add_argument("--save_path", type=str, default='runs/',
+                        help="where to save your data")  # 保存位置
     parser.add_argument("--benchmark", type=bool, default=False, help="whether using torch.benchmark to accelerate "
                                                                       "training(not working in interactive mode)")
-    parser.add_argument("--deterministic", type=bool, default=True, help="whether to use deterministic initialization")
+    parser.add_argument("--deterministic", type=bool, default=True,
+                        help="whether to use deterministic initialization")
     arges = parser.parse_args()
 
     return arges
