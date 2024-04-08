@@ -98,9 +98,12 @@ def train(self):
                               drop_last=False)
     assert len(train_loader) != 0, 'no data loaded'
 
-    if self.optimizer == 'AdamW' or self.optimizer == 'Adam':
+    if self.optimizer == 'AdamW':
         g_optimizer = torch.optim.AdamW(params=generator.parameters(), lr=self.lr, betas=(self.b1, self.b2))
         d_optimizer = torch.optim.AdamW(params=discriminator.parameters(), lr=self.lr, betas=(self.b1, self.b2))
+    elif self.optimizer == 'Adam':
+        g_optimizer = torch.optim.Adam(params=generator.parameters(), lr=self.lr, betas=(self.b1, self.b2))
+        d_optimizer = torch.optim.Adam(params=discriminator.parameters(), lr=self.lr, betas=(self.b1, self.b2))
     elif self.optimizer == 'SGD':
         g_optimizer = torch.optim.SGD(params=generator.parameters(), lr=self.lr, momentum=self.momentum)
         d_optimizer = torch.optim.SGD(params=discriminator.parameters(), lr=self.lr, momentum=self.momentum)
@@ -283,7 +286,7 @@ def parse_args():
                         choices=['BCEBlurWithLogitsLoss', 'mse', 'bce',
                                  'FocalLoss'],
                         help="loss function")
-    parser.add_argument("--lr", type=float, default=2.5e-4, help="learning rate, for adam is 1-e3, SGD is 1-e2")  # 学习率
+    parser.add_argument("--lr", type=float, default=3.5e-4, help="learning rate, for adam is 1-e3, SGD is 1-e2")  # 学习率
     parser.add_argument("--momentum", type=float, default=0.5, help="momentum for adam and SGD")
     parser.add_argument("--model", type=str, default="train", help="train or test model")
     parser.add_argument("--b1", type=float, default=0.5,

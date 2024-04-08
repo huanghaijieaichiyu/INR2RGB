@@ -12,21 +12,21 @@ class Generator(nn.Module):
         self.conv1 = Conv(1, 8, 3)
         self.conv2 = nn.Sequential(Conv(8, 16, 5),
                                    ADown(16, 16))
-        self.conv3 = RepNCSPELAN4(16, 32, 32, 16)
+        self.conv3 = C2f(16, 32, 3)
         self.conv4 = nn.Sequential(Conv(32, 64, 5),
                                    ADown(64, 64),
-                                   RepNCSPELAN4(64, 128, 128, 64)
+                                   C2f(64, 128, 3)
                                    )
         self.conv5 = nn.Sequential(SPPELAN(128, 128, 64),
                                    ADown(128, 128))
         self.conv6 = nn.Sequential(C2f(128, 64),
                                    nn.Upsample(scale_factor=2),
                                    Conv(64, 64, 5))
-        self.conv7 = nn.Sequential(RepNCSPELAN4(64, 64, 64, 32),
+        self.conv7 = nn.Sequential(C2f(64, 64),
                                    nn.Upsample(scale_factor=2))
         self.conv8 = nn.Sequential(Conv(96, 64, 3),
                                    nn.Upsample(scale_factor=2),
-                                   CBAM(64, 64))
+                                   )
         self.conv9 = nn.Sequential(C2f(64, 48),
                                    Conv(48, 16, 3))
         self.conv10 = nn.Sequential(C2f(16, 8),
@@ -69,13 +69,11 @@ class Discriminator(nn.Module):
                                      nn.LeakyReLU())
         self.conv1 = nn.Sequential(Conv(16, 32, 3, 2, act=False),
                                    nn.LeakyReLU(),
-                                   nn.MaxPool2d(3, 2, 1),
                                    Conv(32, 16, 3, 2, act=False),
                                    nn.LeakyReLU(),
                                    nn.MaxPool2d(3, 2, 1),
                                    Conv(16, 8, 3, 2, act=False),
                                    nn.LeakyReLU(),
-                                   nn.MaxPool2d(3, 2, 1),
                                    Conv(8, 4, 3, 2, act=False),
                                    nn.LeakyReLU(),
                                    nn.MaxPool2d(3, 2, 1)
@@ -110,8 +108,8 @@ class Discriminator(nn.Module):
 
 
 if __name__ == '__main__':
-    # model = Discriminator()
-    model_ = Generator()
-    # d_params, d_macs = model_structure(model, (1, 256, 256))
-    d_params, d_macs = model_structure(model_, (1, 256, 256))
+    model = Discriminator()
+    #model_ = Generator()
+    d_params, d_macs = model_structure(model, (2, 256, 256))
+    #d_params, d_macs = model_structure(model_, (1, 256, 256))
     print(d_params, d_macs)
