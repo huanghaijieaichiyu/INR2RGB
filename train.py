@@ -33,7 +33,7 @@ from torchvision import transforms
 from tqdm import tqdm
 
 from datasets.data_set import MyDataset
-from models.base_mode import Generator, Discriminator, GeneratorV2
+from models.base_mode import Generator, Discriminator
 from utils.color_trans import PSlab2rgb, PSrgb2lab
 from utils.loss import BCEBlurWithLogitsLoss, FocalLoss
 from utils.model_map import model_structure
@@ -81,7 +81,7 @@ def train(self):
 
     # 选择模型参数
 
-    generator = GeneratorV2()
+    generator = Generator()
     discriminator = Discriminator()
 
     print('-' * 100)
