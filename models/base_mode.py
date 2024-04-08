@@ -1,7 +1,7 @@
 import torch
 import torch.nn as nn
 
-from models.common import Conv, C2f, CA, SPPELAN, RepNCSPELAN4, Concat, EMA, ADown, SPPF
+from models.common import Conv, C2f, CA, SPPELAN, RepNCSPELAN4, Concat, EMA, ADown, SPPF, SimAM, CBAM
 from utils.model_map import model_structure
 
 
@@ -10,20 +10,24 @@ class Generator(nn.Module):
     def __init__(self) -> None:
         super(Generator, self).__init__()
         self.conv1 = Conv(1, 8, 3)
-        self.conv2 = Conv(8, 16, 5, 2)
+        self.conv2 = nn.Sequential(Conv(8, 16, 5),
+                                   ADown(16, 16))
         self.conv3 = RepNCSPELAN4(16, 32, 32, 16)
-        self.conv4 = nn.Sequential(Conv(32, 64, 5, 2),
+        self.conv4 = nn.Sequential(Conv(32, 64, 5),
+                                   ADown(64, 64),
                                    RepNCSPELAN4(64, 128, 128, 64)
                                    )
-        self.conv5 = SPPELAN(128, 128, 64)
+        self.conv5 = nn.Sequential(SPPELAN(128, 128, 64),
+                                   ADown(128, 128))
         self.conv6 = nn.Sequential(C2f(128, 64),
-                                   Conv(64, 64, 5, 2))
+                                   nn.Upsample(scale_factor=2),
+                                   Conv(64, 64, 5))
         self.conv7 = nn.Sequential(RepNCSPELAN4(64, 64, 64, 32),
                                    nn.Upsample(scale_factor=2))
-        self.conv8 = nn.Sequential(Conv(192, 64, 3),
-                                   nn.Upsample(scale_factor=2))
-        self.conv9 = nn.Sequential(C2f(96, 48),
+        self.conv8 = nn.Sequential(Conv(96, 64, 3),
                                    nn.Upsample(scale_factor=2),
+                                   CBAM(64, 64))
+        self.conv9 = nn.Sequential(C2f(64, 48),
                                    Conv(48, 16, 3))
         self.conv10 = nn.Sequential(C2f(16, 8),
                                     Conv(8, 2, 3, act=False)
@@ -43,9 +47,8 @@ class Generator(nn.Module):
         # neck net
 
         x7 = self.conv7(x6)
-        x8 = self.concat([x5, x7])
-        x9 = self.conv8(x8)
-        x10 = self.concat([x3, x9])
+        x10 = self.concat([x3, x7])
+        x10 = self.conv8(x10)
         x11 = self.conv9(x10)
         x12 = self.conv10(x11)
         x13 = self.tanh(x12)
@@ -78,9 +81,9 @@ class Discriminator(nn.Module):
                                    nn.MaxPool2d(3, 2, 1)
                                    )
         self.conv_out = Conv(4, 1, 3, act=False)  # 记得替换激活函数
-        self.flatten = nn.Flatten()
+        # self.flatten = nn.Flatten()
         self.sig = nn.Sigmoid()
-        self.linear = nn.Sequential(nn.Linear(1024, 512),
+        '''self.linear = nn.Sequential(nn.Linear(1024, 512),
                                     nn.LeakyReLU(),
                                     nn.Linear(512, 128),
                                     nn.LeakyReLU(),
@@ -93,7 +96,7 @@ class Discriminator(nn.Module):
                                     nn.Linear(8, 4),
                                     nn.LeakyReLU(),
                                     nn.Linear(4, 1)
-                                    )
+                                    )'''
 
     def forward(self, x):
         x1 = self.conv_in(x)
@@ -108,7 +111,7 @@ class Discriminator(nn.Module):
 
 if __name__ == '__main__':
     # model = Discriminator()
-    model_ = GeneratorV2()
+    model_ = Generator()
     # d_params, d_macs = model_structure(model, (1, 256, 256))
     d_params, d_macs = model_structure(model_, (1, 256, 256))
     print(d_params, d_macs)
