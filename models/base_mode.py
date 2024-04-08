@@ -10,53 +10,6 @@ class Generator(nn.Module):
     def __init__(self) -> None:
         super(Generator, self).__init__()
         self.conv1 = Conv(1, 8, 3)
-        self.conv2 = RepNCSPELAN4(8, 16, 16, 8)
-        self.conv3 = RepNCSPELAN4(16, 32, 32, 16)
-        self.conv4 = nn.Sequential(RepNCSPELAN4(32, 64, 64, 32)
-                                   )
-        self.conv5 = SPPELAN(64, 64, 32)
-        self.conv6 = nn.Sequential(C2f(64, 64))
-
-        self.conv7 = nn.Sequential(Conv(80, 64),
-                                   ADown(64, 64),
-                                   nn.Upsample(scale_factor=2))
-        self.conv8 = nn.Sequential(Conv(128, 64, 3))
-        self.conv9 = nn.Sequential(C2f(64, 32),
-                                   Conv(32, 16, 3))
-        self.conv10 = nn.Sequential(C2f(16, 8),
-                                    Conv(8, 2, 3, act=False)
-                                    )
-        self.tanh = nn.Tanh()
-        self.concat = Concat()
-
-    def forward(self, x):
-        # head net
-        x1 = self.conv1(x)
-        x2 = self.conv2(x1)
-        x3 = self.conv3(x2)
-        x4 = self.conv4(x3)
-        x5 = self.conv5(x4)
-        x6 = self.conv6(x5)
-
-        # neck net
-        x7 = self.concat([x2, x6])
-        x8 = self.conv7(x7)
-        x9 = self.concat([x5, x8])
-        x10 = self.conv8(x9)
-        x11 = self.conv9(x10)
-        x12 = self.conv10(x11)
-        x13 = self.tanh(x12)
-
-        x = x13.view(-1, 2, x.shape[2], x.shape[3])
-
-        return x
-
-
-class GeneratorV2(nn.Module):
-
-    def __init__(self) -> None:
-        super(GeneratorV2, self).__init__()
-        self.conv1 = Conv(1, 8, 3)
         self.conv2 = Conv(8, 16, 5, 2)
         self.conv3 = RepNCSPELAN4(16, 32, 32, 16)
         self.conv4 = nn.Sequential(Conv(32, 64, 5, 2),
