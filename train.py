@@ -139,14 +139,14 @@ def train(self):
             img_lab = PSrgb2lab(img)
             gray, a, b = torch.split(img_lab, [1, 1, 1], 1)
             color = torch.cat([a, b], dim=1)
-            lamb = 1 / 128.  # 取绝对值最大值，避免负数超出索引
+            lamb = 128.  # 取绝对值最大值，避免负数超出索引
             gray = gray.to(device)
             color = color.to(device)
 
             optimizer.zero_grad()
             with autocast(enabled=self.amp):
                 fake = mode(gray)
-                output = loss(fake, color * lamb)
+                output = loss(fake, color / lamb)
                 output.backward()
                 optimizer.step()
 
@@ -154,7 +154,7 @@ def train(self):
 
                 fake_tensor = torch.zeros((self.batch_size, 3, self.img_size[0], self.img_size[1]), dtype=torch.float32)
                 fake_tensor[:, 0, :, :] = gray[:, 0, :, :]  # 主要切片位置
-                fake_tensor[:, 1:, :, :] = fake / lamb
+                fake_tensor[:, 1:, :, :] = fake * lamb
                 fake_img = np.array(img_pil(PSlab2rgb(fake_tensor)[0]), dtype=np.float32)
                 # print(fake_img)
                 # 加入新的评价指标：PSN,SSIM
@@ -203,8 +203,8 @@ def parse_args():
     parser = argparse.ArgumentParser()  # 命令行选项、参数和子命令解析器
     parser.add_argument("--data", type=str, help="path to dataset", required=True)
     parser.add_argument("--epochs", type=int, default=1000, help="number of epochs of training")  # 迭代次数
-    parser.add_argument("--batch_size", type=int, default=16, help="size of the batches")  # batch大小
-    parser.add_argument("--img_size", type=tuple, default=(128, 128), help="size of the image")
+    parser.add_argument("--batch_size", type=int, default=8, help="size of the batches")  # batch大小
+    parser.add_argument("--img_size", type=tuple, default=(256, 256), help="size of the image")
     parser.add_argument("--optimizer", type=str, default='AdamW', choices=['AdamW', 'SGD', 'Adam', 'lion', 'rmp'])
     parser.add_argument("--num_workers", type=int, default=10,
                         help="number of data loading workers, if in windows, must be 0"
@@ -216,7 +216,7 @@ def parse_args():
                         choices=['BCEBlurWithLogitsLoss', 'mse', 'bce',
                                  'SoftTargetCrossEntropy'],
                         help="loss function")
-    parser.add_argument("--lr", type=float, default=1e-3, help="learning rate, for adam is 1-e3, SGD is 1-e2")  # 学习率
+    parser.add_argument("--lr", type=float, default=7.5e-3, help="learning rate, for adam is 1-e3, SGD is 1-e2")  # 学习率
     parser.add_argument("--momentum", type=float, default=0.9, help="momentum for adam and SGD")
     parser.add_argument("--model", type=str, default="train", help="train or test model")
     parser.add_argument("--b1", type=float, default=0.9,
