@@ -34,7 +34,7 @@ from tqdm import tqdm
 
 from datasets.data_set import MyDataset
 from models.base_mode import Generator, Discriminator
-from utils.color_trans import myPSlab2rgb, myPSrgb2lab
+from utils.color_trans import PSlab2rgb, PSrgb2lab
 from utils.loss import BCEBlurWithLogitsLoss, FocalLoss
 from utils.model_map import model_structure
 from utils.save_path import Path
@@ -219,7 +219,7 @@ def train(self):
             target, (img, label) = data
             # print(img)
             # 对输入图像进行处理
-            img_lab = myPSrgb2lab(img)
+            img_lab = PSrgb2lab(img)
             gray, a, b = torch.split(img_lab, [1, 1, 1], 1)
             color = torch.cat([a, b], dim=1)
             lamb = 128.  # 取绝对值最大值，避免负数超出索引
@@ -336,7 +336,7 @@ def train(self):
                        (epoch + 1))
         # 可视化训练结果
         log.add_images('real', img, epoch + 1)
-        log.add_images('fake', myPSlab2rgb(fake_tensor), epoch + 1)
+        log.add_images('fake', PSlab2rgb(fake_tensor), epoch + 1)
 
     log.close()
 

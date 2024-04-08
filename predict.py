@@ -10,7 +10,8 @@ from torchvision import transforms
 from tqdm import tqdm
 
 from datasets.data_set import MyDataset
-from models.base_mode import ConvertV1, Generator
+from models.base_mode import Generator
+from utils.color_trans import PSrgb2lab, PSlab2rgb
 from utils.model_map import model_structure
 from utils.save_path import Path
 
@@ -56,8 +57,7 @@ def predict(self):
     model.load_state_dict(checkpoint['net'])
     model.to(device)
     test_data = MyDataset(self.data, self.img_size)
-    trans = transforms.ToPILImage()
-    img_2gray = transforms.Grayscale()
+    img_pil = transforms.ToPILImage()
     test_loader = DataLoader(test_data,
                              batch_size=self.batch_size,
                              num_workers=self.num_workers,
@@ -67,7 +67,7 @@ def predict(self):
                                                                            'total_fmt} {elapsed}')
     model.eval()
     torch.no_grad()
-    i = 0
+    i= 0
     if not os.path.exists(os.path.join(path, 'predictions')):
         os.makedirs(os.path.join(path, 'predictions'))
     for data in pbar:
@@ -93,18 +93,25 @@ def predict(self):
         tmp[:, :, 1:] = 128 * outputs[0]
         print('tmp is ', tmp)
         target, (img, label) = data
-        img = img.to(device)
-        img = img_2gray(img)
-        fake = model(img)
 
-        fake = fake.detach().cpu().numpy()
-        fake = fake.astype(np.float32)
-        fake = fake[0]
-        print('fake is ', fake)
-        if i > 10 and i % 10 == 0:  # 图片太多，十轮保存一次
-            img_save_path = os.path.join(path, 'predictions', str(i) + '.jpg')
-            cv2.imwrite(img_save_path, fake)
-        i = i + 1
+        img_lab = PSrgb2lab(img)
+        gray, a, b = torch.split(img_lab, [1, 1, 1], 1)
+        color = torch.cat([a, b], dim=1)
+        lamb = 128.  # 取绝对值最大值，避免负数超出索引
+        gray = gray.to(device)
+        color = color.to(device)
+
+        fake = model(gray)
+        fake_tensor = torch.zeros((self.batch_size, 3, self.img_size[0], self.img_size[1]), dtype=torch.float32)
+        fake_tensor[:, 0, :, :] = gray[:, 0, :, :]  # 主要切片位置
+        fake_tensor[:, 1:, :, :] = lamb * fake
+        for j in range(self.batch_size):
+            fake_img = np.array(img_pil(PSlab2rgb(fake_tensor)[j]), dtype=np.float32)
+
+            if i > 10 and i % 10 == 0:  # 图片太多，十轮保存一次
+                img_save_path = os.path.join(path, 'predictions', str(i) + '.jpg')
+                cv2.imwrite(img_save_path, fake_img)
+            i = i + 1
         pbar.set_description('Processed %d images' % i)
     pbar.close()
 
@@ -150,16 +157,17 @@ def predict_live(self):
         cv2.imshow('fake', cv2.cvtColor(tmp, cv2.COLOR_LAB2RGB))
         frame_pil = cv2.resize(frame_pil, self.img_size)  # 是否需要resize取决于新图片格式与训练时的是否一致
 
-        frame_pil = torch.tensor(frame_pil, dtype=torch.float32).to(device)
-        frame_pil = torch.permute(frame_pil, (2, 0, 1))  # HWC 2 CHW
-        frame_pil = img_2gray(frame_pil)
-        frame_pil = torch.unsqueeze(frame_pil, 0)  # 提升维度
+        frame_pil = torch.tensor(np.array(frame_pil, np.float32)/255., dtype=torch.float32).to(device)  # 转为tensor
+        frame_pil = torch.unsqueeze(frame_pil, 0).permute(0, 3, 1, 2)  # 提升维度--转换维度
+        frame_lab = PSrgb2lab(frame_pil)  # 转为LAB
+        gray, _, _ = torch.split(frame_lab, [1, 1, 1], 1)
 
-        fake = model(frame_pil/255.)
-        fake = fake.permute(0, 2, 3, 1)  # CHW2HWC
-        fake = fake.detach().cpu().numpy()
-        fake = fake[0]  # 降维度
-        fake = fake.astype(np.float32)
+        fake_ab = model(gray)
+        fake_ab = fake_ab.permute(0, 2, 3, 1).detach().cpu().numpy()[0].astype(np.float32)
+        fake = np.zeros((self.img_size[0], self.img_size[1], 3), dtype=np.float32)
+        fake[:, :, 0] = gray.permute(0, 2, 3, 1).detach().cpu().numpy()[0][:, :, 0]
+        fake[:, :, 1:] = fake_ab * 128
+        fake = cv2.cvtColor(fake, cv2.COLOR_Lab2RGB)
         # fake *= 255.
         fake = cv2.resize(fake, (640, 480))  # 维度还没降下来
 
