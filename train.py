@@ -78,6 +78,8 @@ def train(self):
                                     flush_secs=180)
     set_random_seed(self.seed, deterministic=self.deterministic,
                     benchmark=self.benchmark)
+    set_random_seed(self.seed, deterministic=self.deterministic,
+                    benchmark=self.benchmark)
 
     # 选择模型参数
 
@@ -88,21 +90,15 @@ def train(self):
     print('Drawing model graph to tensorboard, you can check it with:http://127.0.0.1:6006 after running tensorboard '
           '--logdir={}'.format(os.path.join(self.save_path, 'tensorboard')))
     log.add_graph(generator, torch.randn(
-        1, 3, self.img_size[0], self.img_size[1]))
-    log.add_graph(discriminator, torch.randn(
-        1, 3, self.img_size[0], self.img_size[1]))
-    log.add_graph(generator, torch.randn(
         1, 1, self.img_size[0], self.img_size[1]))
     print('Drawing dnoe!')
     print('-' * 100)
     print('Generator model info: \n')
     g_params, g_macs = model_structure(
-        generator, img_size=(3, self.img_size[0], self.img_size[1]))
-    g_params, g_macs = model_structure(
         generator, img_size=(1, self.img_size[0], self.img_size[1]))
     print('Discriminator model info: \n')
     d_params, d_macs = model_structure(
-        discriminator, img_size=(3, self.img_size[0], self.img_size[1]))
+        discriminator, img_size=(2, self.img_size[0], self.img_size[1]))
     generator = generator.to(device)
     discriminator = discriminator.to(device)
     # 打印配置
@@ -140,7 +136,15 @@ def train(self):
             params=generator.parameters(), lr=self.lr, betas=(self.b1, self.b2))
         d_optimizer = torch.optim.AdamW(
             params=discriminator.parameters(), lr=self.lr, betas=(self.b1, self.b2))
+        g_optimizer = torch.optim.AdamW(
+            params=generator.parameters(), lr=self.lr, betas=(self.b1, self.b2))
+        d_optimizer = torch.optim.AdamW(
+            params=discriminator.parameters(), lr=self.lr, betas=(self.b1, self.b2))
     elif self.optimizer == 'Adam':
+        g_optimizer = torch.optim.Adam(
+            params=generator.parameters(), lr=self.lr, betas=(self.b1, self.b2))
+        d_optimizer = torch.optim.Adam(
+            params=discriminator.parameters(), lr=self.lr, betas=(self.b1, self.b2))
         g_optimizer = torch.optim.Adam(
             params=generator.parameters(), lr=self.lr, betas=(self.b1, self.b2))
         d_optimizer = torch.optim.Adam(
@@ -150,7 +154,15 @@ def train(self):
             params=generator.parameters(), lr=self.lr, momentum=self.momentum)
         d_optimizer = torch.optim.SGD(
             params=discriminator.parameters(), lr=self.lr, momentum=self.momentum)
+        g_optimizer = torch.optim.SGD(
+            params=generator.parameters(), lr=self.lr, momentum=self.momentum)
+        d_optimizer = torch.optim.SGD(
+            params=discriminator.parameters(), lr=self.lr, momentum=self.momentum)
     elif self.optimizer == 'lion':
+        g_optimizer = Lion(params=generator.parameters(),
+                           lr=self.lr, betas=(self.b1, self.b2))
+        d_optimizer = Lion(params=discriminator.parameters(),
+                           lr=self.lr, betas=(self.b1, self.b2))
         g_optimizer = Lion(params=generator.parameters(),
                            lr=self.lr, betas=(self.b1, self.b2))
         d_optimizer = Lion(params=discriminator.parameters(),
@@ -249,11 +261,9 @@ def train(self):
 
                 d_real_output = loss(real_outputs, torch.ones_like(
                     real_outputs))  # D 希望 real_loss 为 1
-                d_real_output.backward()
 
                 d_fake_output = loss(fake_outputs, torch.zeros_like(
                     fake_outputs))  # D 希望 fake_loss 为 0
-                d_fake_output.backward()
 
                 d_output = d_real_output + d_fake_output
                 d_output.backward()
@@ -263,33 +273,23 @@ def train(self):
                 fake = generator(gray)
                 g_optimizer.zero_grad()
                 fake_inputs = discriminator(fake)
-                g_dis = loss(fake_inputs, torch.ones_like(
+                g_output = loss(fake_inputs, torch.ones_like(
                     fake_inputs))  # G 希望 fake_loss 为 1
-                g_gen = mse(fake, color / lamb)  # 加上生成损失
-                g_output = g_dis + g_gen * 10
-                g_dis = loss(fake_inputs, torch.ones_like(
-                    fake_inputs))  # G 希望 fake_loss 为 1
-                g_gen = mse(fake, color / lamb)  # 加上生成损失
-                g_output = g_dis + g_gen * 0.5
                 g_output.backward()
                 g_optimizer.step()
 
             # 图像拼接还原
-            fake_img = np.zeros(
-                (self.img_size[0], self.img_size[1], 3), dtype=np.float32)
-            fake_img[:, :, 0] = x[0][:, :, 0]
-            fake_img[:, :, 1:] = 128 * \
-                fake.permute(0, 2, 3, 1).detach().cpu().numpy()[0]
-            fake_img = 255. * cv2.cvtColor(fake_img, cv2.COLOR_LAB2RGB)
             fake_tensor = torch.zeros(
                 (self.batch_size, 3, self.img_size[0], self.img_size[1]), dtype=torch.float32)
             fake_tensor[:, 0, :, :] = gray[:, 0, :, :]  # 主要切片位置
             fake_tensor[:, 1:, :, :] = lamb * fake
             fake_img = np.array(
-                img_pil(myPSlab2rgb(fake_tensor)[0]), dtype=np.float32)
+                img_pil(PSlab2rgb(fake_tensor)[0]), dtype=np.float32)
             # print(fake_img)
             # 加入新的评价指标：PSN,SSIM
             real_pil = img_pil(img[0])
+            psn = peak_signal_noise_ratio(
+                np.array(real_pil, dtype=np.float32) / 255., fake_img / 255., data_range=1)
             psn = peak_signal_noise_ratio(
                 np.array(real_pil, dtype=np.float32) / 255., fake_img / 255., data_range=1)
 
@@ -326,6 +326,8 @@ def train(self):
                                                   epoch=epoch + 1,
                                                   gloss_str=" ".join(
                                                       ["{:4f}".format(g_output.item())]),
+                                                  gloss_str=" ".join(
+                                                      ["{:4f}".format(g_output.item())]),
                                                   dloss_str=" ".join(["{:4f}".format(d_output.item())]))
         with open(train_log, "a") as f:
             f.write(to_write)
@@ -333,6 +335,8 @@ def train(self):
             # 5 epochs for saving another model
         if (epoch + 1) % 10 == 0 and (epoch + 1) >= 10:
             torch.save(g_checkpoint, path + '/generator/%d.pt' % (epoch + 1))
+            torch.save(d_checkpoint, path + '/discriminator/%d.pt' %
+                       (epoch + 1))
             torch.save(d_checkpoint, path + '/discriminator/%d.pt' %
                        (epoch + 1))
         # 可视化训练结果
@@ -344,35 +348,20 @@ def train(self):
 
 def parse_args():
     parser = argparse.ArgumentParser()  # 命令行选项、参数和子命令解析器
-    parser.add_argument("--data", type=str, default='../datasets/coco_2k',
-                        help="path to dataset", required=True)
+    parser.add_argument("--data", type=str,
+                        default='../datasets/coco5000', help="path to dataset")
     parser.add_argument("--epochs", type=int, default=1000,
                         help="number of epochs of training")  # 迭代次数
-    parser.add_argument("--batch_size", type=int, default=16,
+    parser.add_argument("--batch_size", type=int, default=8,
                         help="size of the batches")  # batch大小
     parser.add_argument("--img_size", type=tuple,
-                        default=(128, 128), help="size of the image")
-    parser.add_argument("--optimizer", type=str, default='lion',
-                        choices=['AdamW', 'SGD', 'Adam', 'lion', 'rmp'])
-    parser.add_argument("--data", type=str, default='../datasets/coco_2k',
-                        help="path to dataset", required=True)
-    parser.add_argument("--epochs", type=int, default=1000,
-                        help="number of epochs of training")  # 迭代次数
-    parser.add_argument("--batch_size", type=int, default=16,
-                        help="size of the batches")  # batch大小
-    parser.add_argument("--img_size", type=tuple,
-                        default=(128, 128), help="size of the image")
+                        default=(256, 256), help="size of the image")
     parser.add_argument("--optimizer", type=str, default='Adam',
                         choices=['AdamW', 'SGD', 'Adam', 'lion', 'rmp'])
-    parser.add_argument("--num_workers", type=int, default=10,
+    parser.add_argument("--num_workers", type=int, default=20,
                         help="number of data loading workers, if in windows, must be 0"
                         )
     parser.add_argument("--seed", type=int, default=1999, help="random seed")
-    parser.add_argument("--resume", type=tuple,
-                        default=[''], help="path to two latest checkpoint,yes or no")
-    parser.add_argument("--amp", type=bool, default=True,
-                        help="Whether to use amp in mixed precision")
-    parser.add_argument("--loss", type=str, default='BCEBlurWithLogitsLoss',
     parser.add_argument("--resume", type=tuple,
                         default=[''], help="path to two latest checkpoint,yes or no")
     parser.add_argument("--amp", type=bool, default=True,
@@ -387,6 +376,12 @@ def parse_args():
                         help="momentum for adam and SGD")
     parser.add_argument("--model", type=str, default="train",
                         help="train or test model")
+    parser.add_argument("--lr", type=float, default=3.5e-4,
+                        help="learning rate, for adam is 1-e3, SGD is 1-e2")  # 学习率
+    parser.add_argument("--momentum", type=float, default=0.5,
+                        help="momentum for adam and SGD")
+    parser.add_argument("--model", type=str, default="train",
+                        help="train or test model")
     parser.add_argument("--b1", type=float, default=0.5,
                         help="adam: decay of first order momentum of gradient")  # 动量梯度下降第一个参数
     parser.add_argument("--b2", type=float, default=0.999,
@@ -395,19 +390,17 @@ def parse_args():
                         help="using cosine lr rate")
     parser.add_argument("--device", type=str, default='cuda', choices=['cpu', 'cuda'],
                         help="select your device to train, if you have a gpu, use 'cuda:0'!")  # 训练设备
-    parser.add_argument("--cuDNN", type=bool, default=True,
-                        help="using cudnn to accalerate your train")
     parser.add_argument("--save_path", type=str, default='runs/',
                         help="where to save your data")  # 保存位置
     parser.add_argument("--benchmark", type=bool, default=False, help="whether using torch.benchmark to accelerate "
                                                                       "training(not working in interactive mode)")
     parser.add_argument("--deterministic", type=bool, default=True,
                         help="whether to use deterministic initialization")
-    arges=parser.parse_args()
+    arges = parser.parse_args()
 
     return arges
 
 
 if __name__ == '__main__':
-    opt=parse_args()
+    opt = parse_args()
     train(opt)
