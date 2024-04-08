@@ -67,11 +67,10 @@ def predict(self):
         target, (img, label) = data
 
         img_lab = PSrgb2lab(img)
-        gray, a, b = torch.split(img_lab, [1, 1, 1], 1)
-        color = torch.cat([a, b], dim=1)
+        gray, _, _ = torch.split(img_lab, [1, 1, 1], 1)
+
         lamb = 128.  # 取绝对值最大值，避免负数超出索引
         gray = gray.to(device)
-        color = color.to(device)
 
         fake = model(gray)
         fake_tensor = torch.zeros((self.batch_size, 3, self.img_size[0], self.img_size[1]), dtype=torch.float32)
@@ -109,7 +108,7 @@ def predict_live(self):
         frame_pil = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
         frame_pil = cv2.resize(frame_pil, self.img_size)  # 是否需要resize取决于新图片格式与训练时的是否一致
 
-        frame_pil = torch.tensor(np.array(frame_pil, np.float32)/255., dtype=torch.float32).to(device)  # 转为tensor
+        frame_pil = torch.tensor(np.array(frame_pil, np.float32) / 255., dtype=torch.float32).to(device)  # 转为tensor
         frame_pil = torch.unsqueeze(frame_pil, 0).permute(0, 3, 1, 2)  # 提升维度--转换维度
         frame_lab = PSrgb2lab(frame_pil)  # 转为LAB
         gray, _, _ = torch.split(frame_lab, [1, 1, 1], 1)

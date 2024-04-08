@@ -282,7 +282,7 @@ def parse_args():
     parser.add_argument("--data", type=str, default='../datasets/coco_2k', help="path to dataset", required=True)
     parser.add_argument("--epochs", type=int, default=1000, help="number of epochs of training")  # 迭代次数
     parser.add_argument("--batch_size", type=int, default=8, help="size of the batches")  # batch大小
-    parser.add_argument("--img_size", type=tuple, default=(128, 128), help="size of the image")
+    parser.add_argument("--img_size", type=tuple, default=(256, 256), help="size of the image")
     parser.add_argument("--optimizer", type=str, default='Adam', choices=['AdamW', 'SGD', 'Adam', 'lion', 'rmp'])
     parser.add_argument("--num_workers", type=int, default=20,
                         help="number of data loading workers, if in windows, must be 0"
