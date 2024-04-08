@@ -197,7 +197,7 @@ def train(self):
 
                 d_fake_output = loss(fake_outputs, torch.zeros_like(fake_outputs))  # D 希望 fake_loss 为 0
 
-                d_output = (d_real_output + d_fake_output) * 0.5
+                d_output = d_real_output + d_fake_output
                 d_output.backward()
                 d_optimizer.step()
 
@@ -205,15 +205,10 @@ def train(self):
                 fake = generator(gray)
                 g_optimizer.zero_grad()
                 fake_inputs = discriminator(fake)
-                g_dis = loss(fake_inputs, torch.ones_like(fake_inputs))  # G 希望 fake_loss 为 1
-                g_gen = mse(fake, color / lamb)  # 加上生成损失
-                g_output = g_dis * 0.9 + g_gen * 0.1
+                g_output = loss(fake_inputs, torch.ones_like(fake_inputs))  # G 希望 fake_loss 为 1
                 g_output.backward()
                 g_optimizer.step()
 
-            d_epoch_loss += d_output
-            g_epoch_loss += g_output
-            total_loss = (d_epoch_loss + g_epoch_loss) / len(train_loader)
             # 图像拼接还原
             fake_tensor = torch.zeros((self.batch_size, 3, self.img_size[0], self.img_size[1]), dtype=torch.float32)
             fake_tensor[:, 0, :, :] = gray[:, 0, :, :]  # 主要切片位置
@@ -226,9 +221,9 @@ def train(self):
 
             pbar.set_description("Epoch [%d/%d] ----------- Batch [%d/%d] -----------  Generator loss: %.4f "
                                  "-----------  Discriminator loss: %.4f-----------"
-                                 "-----------Total loss: %.4f-----------PSN: %.4f"
+                                 "-----------PSN: %.4f"
                                  % (epoch + 1, self.epochs, target + 1, len(train_loader), g_output.item(),
-                                    d_output.item(), total_loss, psn))
+                                    d_output.item(), psn))
 
         g_checkpoint = {
             'net': generator.state_dict(),
@@ -242,12 +237,6 @@ def train(self):
             'epoch': epoch,
             'loss': loss.state_dict()
         }
-        # 训练日志写入
-        log.add_scalar('Total loss', total_loss, epoch)
-        log.add_scalar('generator total loss', g_output.item(), epoch)
-        log.add_scalar('discriminator total loss', d_output.item(), epoch)
-        log.add_scalar('generator_PSNR', psn, epoch)
-
         # 保持最佳模型
 
         if g_output.item() < min(loss_all):
