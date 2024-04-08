@@ -16,7 +16,7 @@ from tqdm import tqdm
 
 from datasets.data_set import MyDataset
 from models.base_mode import Generator, Discriminator
-from utils.color_trans import myPSlab2rgb, myPSrgb2lab
+from utils.color_trans import PSlab2rgb, PSrgb2lab
 from utils.loss import BCEBlurWithLogitsLoss, FocalLoss
 from utils.model_map import model_structure
 from utils.save_path import Path
@@ -175,7 +175,7 @@ def train(self):
             target, (img, label) = data
             # print(img)
             # 对输入图像进行处理
-            img_lab = myPSrgb2lab(img)
+            img_lab = PSrgb2lab(img)
             gray, a, b = torch.split(img_lab, [1, 1, 1], 1)
             color = torch.cat([a, b], dim=1)
             lamb = 128.  # 取绝对值最大值，避免负数超出索引
@@ -207,7 +207,7 @@ def train(self):
                 fake_inputs = discriminator(fake)
                 g_dis = loss(fake_inputs, torch.ones_like(fake_inputs))  # G 希望 fake_loss 为 1
                 g_gen = mse(fake, color / lamb)  # 加上生成损失
-                g_output = g_dis * 0.7 + g_gen * 0.3
+                g_output = g_dis * 0.9 + g_gen * 0.1
                 g_output.backward()
                 g_optimizer.step()
 
@@ -218,7 +218,7 @@ def train(self):
             fake_tensor = torch.zeros((self.batch_size, 3, self.img_size[0], self.img_size[1]), dtype=torch.float32)
             fake_tensor[:, 0, :, :] = gray[:, 0, :, :]  # 主要切片位置
             fake_tensor[:, 1:, :, :] = lamb * fake
-            fake_img = np.array(img_pil(myPSlab2rgb(fake_tensor)[0]), dtype=np.float32)
+            fake_img = np.array(img_pil(PSlab2rgb(fake_tensor)[0]), dtype=np.float32)
             # print(fake_img)
             # 加入新的评价指标：PSN,SSIM
             real_pil = img_pil(img[0])
@@ -272,7 +272,7 @@ def train(self):
             torch.save(d_checkpoint, path + '/discriminator/%d.pt' % (epoch + 1))
         # 可视化训练结果
         log.add_images('real', img, epoch + 1)
-        log.add_images('fake', myPSlab2rgb(fake_tensor), epoch + 1)
+        log.add_images('fake', PSlab2rgb(fake_tensor), epoch + 1)
 
     log.close()
 
@@ -294,10 +294,10 @@ def parse_args():
                         choices=['BCEBlurWithLogitsLoss', 'mse', 'bce',
                                  'FocalLoss'],
                         help="loss function")
-    parser.add_argument("--lr", type=float, default=9.5e-4, help="learning rate, for adam is 1-e3, SGD is 1-e2")  # 学习率
-    parser.add_argument("--momentum", type=float, default=0.8, help="momentum for adam and SGD")
+    parser.add_argument("--lr", type=float, default=4.5e-4, help="learning rate, for adam is 1-e3, SGD is 1-e2")  # 学习率
+    parser.add_argument("--momentum", type=float, default=0.7, help="momentum for adam and SGD")
     parser.add_argument("--model", type=str, default="train", help="train or test model")
-    parser.add_argument("--b1", type=float, default=0.8,
+    parser.add_argument("--b1", type=float, default=0.7,
                         help="adam: decay of first order momentum of gradient")  # 动量梯度下降第一个参数
     parser.add_argument("--b2", type=float, default=0.999,
                         help="adam: decay of first order momentum of gradient")  # 动量梯度下降第二个参数

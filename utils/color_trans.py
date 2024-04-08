@@ -36,7 +36,7 @@ def anti_g(r):
 #  [-0.97876273  1.91614223  0.03344963]
 #  [ 0.07194258 -0.22897118  1.40521831]]
 
-def myPSrgb2lab(img):  # RGB img:[b,3,h,w]->lab,L[0,100],AB[-127,127]
+def PSrgb2lab(img):  # RGB img:[b,3,h,w]->lab,L[0,100],AB[-127,127]
     r = img[:, 0, :, :]
     g = img[:, 1, :, :]
     b = img[:, 2, :, :]
@@ -68,7 +68,7 @@ def myPSrgb2lab(img):  # RGB img:[b,3,h,w]->lab,L[0,100],AB[-127,127]
     return torch.stack([L, a, b], dim=1)
 
 
-def myPSlab2rgb(Lab):
+def PSlab2rgb(Lab):
     fY = (Lab[:, 0, :, :] + 16.0) / 116.0
     fX = Lab[:, 1, :, :] / 500.0 + fY
     fZ = fY - Lab[:, 2, :, :] / 200.0
