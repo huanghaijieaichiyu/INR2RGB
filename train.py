@@ -135,6 +135,16 @@ def train(self):
             params=generator.parameters(), lr=self.lr, betas=(self.b1, self.b2))
         d_optimizer = torch.optim.AdamW(
             params=discriminator.parameters(), lr=self.lr, betas=(self.b1, self.b2))
+    if self.optimizer == 'AdamW':
+        g_optimizer = torch.optim.AdamW(
+            params=generator.parameters(), lr=self.lr, betas=(self.b1, self.b2))
+        d_optimizer = torch.optim.AdamW(
+            params=discriminator.parameters(), lr=self.lr, betas=(self.b1, self.b2))
+    elif self.optimizer == 'Adam':
+        g_optimizer = torch.optim.Adam(
+            params=generator.parameters(), lr=self.lr, betas=(self.b1, self.b2))
+        d_optimizer = torch.optim.Adam(
+            params=discriminator.parameters(), lr=self.lr, betas=(self.b1, self.b2))
     elif self.optimizer == 'SGD':
         g_optimizer = torch.optim.SGD(
             params=generator.parameters(), lr=self.lr, momentum=self.momentum)
@@ -371,13 +381,13 @@ def parse_args():
                         choices=['BCEBlurWithLogitsLoss', 'mse', 'bce',
                                  'FocalLoss'],
                         help="loss function")
-    parser.add_argument("--lr", type=float, default=4.5e-4,
+    parser.add_argument("--lr", type=float, default=3.5e-4,
                         help="learning rate, for adam is 1-e3, SGD is 1-e2")  # 学习率
-    parser.add_argument("--momentum", type=float, default=0.7,
+    parser.add_argument("--momentum", type=float, default=0.5,
                         help="momentum for adam and SGD")
     parser.add_argument("--model", type=str, default="train",
                         help="train or test model")
-    parser.add_argument("--b1", type=float, default=0.7,
+    parser.add_argument("--b1", type=float, default=0.5,
                         help="adam: decay of first order momentum of gradient")  # 动量梯度下降第一个参数
     parser.add_argument("--b2", type=float, default=0.999,
                         help="adam: decay of first order momentum of gradient")  # 动量梯度下降第二个参数
