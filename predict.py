@@ -21,11 +21,11 @@ def parse_args():
     parser.add_argument("--data", type=str, default='0',
                         help='path to dataset, and 0 is to open your camara')
     parser.add_argument(
-        "--model", type=str, default='/home/huang/INR2RGB/runs/train(4)/generator/600.pt', help="path to model")
+        "--model", type=str, default='/home/huang/INR2RGB/runs/train(5)/generator/last.pt', help="path to model")
     parser.add_argument("--batch_size", type=int, default=16,
                         help="size of the batches")  # batch大小
     parser.add_argument("--img_size", type=tuple,
-                        default=(128, 128), help="size of the image")
+                        default=(256, 256), help="size of the image")
     parser.add_argument("--num_workers", type=int, default=0,
                         help="number of data loading workers, if in windows, must be 0"
                         )
@@ -111,7 +111,7 @@ def predict_live(self):
     checkpoint = torch.load(self.model)
     model.load_state_dict(checkpoint['net'])
     model.to(device)
-    cap = cv2.VideoCapture(0)  # 读取图像
+    cap = cv2.VideoCapture(2)  # 读取图像
     img_2gray = transforms.Grayscale()
     model.eval()
     torch.no_grad()
