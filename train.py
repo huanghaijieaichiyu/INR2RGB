@@ -84,10 +84,10 @@ def train(self):
             f.writelines(eachArg + ' : ' + str(value) + '\n')
         f.writelines('------------------- end -------------------')
         f.writelines('\n' + 'The parameters of generator: {:.2f} M'.format(g_params) + '\n' + 'The Gflops of '
-                                                                                              'ConvertV1: {:.2f}'
+                                                                                              'generator: {:.2f}'
                                                                                               ' G'.format(g_macs))
         f.writelines('\n' + 'The parameters of discriminator: {:.2f} M'.format(d_params) + '\n' + 'The Gflops of '
-                                                                                                  'ConvertV1: {:.2f}'
+                                                                                                  ' discriminator: {:.2f}'
                                                                                                   ' G'.format(d_macs))
         f.writelines('\n' + '-------------------------------------------')
     print('train models at the %s device' % device)
@@ -99,7 +99,7 @@ def train(self):
     train_loader = DataLoader(train_data,
                               batch_size=self.batch_size,
                               num_workers=self.num_workers,
-                              drop_last=False)
+                              drop_last=True)
     assert len(train_loader) != 0, 'no data loaded'
 
     if self.optimizer == 'AdamW':
@@ -149,7 +149,11 @@ def train(self):
 
     # 储存loss 判断模型好坏
     loss_all = [99.]
+    # 寄存器判断模型提前终止条件
+    per_G_loss = 99
+    per_D_loss = 99
 
+    toleration = 0
     # 此处开始训练
     generator.train()
     discriminator.train()
@@ -227,6 +231,12 @@ def train(self):
                 g_output.backward()
                 g_optimizer.step()
 
+            # 判断模型是否需要提前终止
+            if per_G_loss < g_output.item() and per_D_loss > d_output.item():
+                toleration += 1
+            if toleration > 99:
+                break
+
             # 图像拼接还原
             fake_tensor = torch.zeros(
                 (self.batch_size, 3, self.img_size[0], self.img_size[1]), dtype=torch.float32)
@@ -292,8 +302,8 @@ def train(self):
 def parse_args():
     parser = argparse.ArgumentParser()  # 命令行选项、参数和子命令解析器
     parser.add_argument("--data", type=str,
-                        default='../datasets/coco5000', help="path to dataset")
-    parser.add_argument("--epochs", type=int, default=1000,
+                        default='../datasets/coco/images', help="path to dataset")
+    parser.add_argument("--epochs", type=int, default=5000,
                         help="number of epochs of training")  # 迭代次数
     parser.add_argument("--batch_size", type=int, default=8,
                         help="size of the batches")  # batch大小
