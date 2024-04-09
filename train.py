@@ -9,6 +9,7 @@ from skimage.metrics import peak_signal_noise_ratio
 from timm.optim import Lion, RMSpropTF
 from torch import nn
 from torch.cuda.amp import autocast
+from torch.backends import cudnn
 from torch.utils import tensorboard
 from torch.utils.data import DataLoader
 from torchvision import transforms
@@ -155,6 +156,11 @@ def train(self):
 
     toleration = 0
     # 此处开始训练
+    # 使用cuDNN加速训练
+    if self.cuDNN:
+        cudnn.enabled = True
+        cudnn.benchmark = True
+        cudnn.deterministic = True
     generator.train()
     discriminator.train()
     for epoch in range(self.epochs):
@@ -302,8 +308,8 @@ def train(self):
 def parse_args():
     parser = argparse.ArgumentParser()  # 命令行选项、参数和子命令解析器
     parser.add_argument("--data", type=str,
-                        default='../datasets/coco/images', help="path to dataset")
-    parser.add_argument("--epochs", type=int, default=5000,
+                        default='../datasets/coco_test', help="path to dataset")
+    parser.add_argument("--epochs", type=int, default=1000,
                         help="number of epochs of training")  # 迭代次数
     parser.add_argument("--batch_size", type=int, default=8,
                         help="size of the batches")  # batch大小
@@ -319,6 +325,8 @@ def parse_args():
                         default=[''], help="path to two latest checkpoint,yes or no")
     parser.add_argument("--amp", type=bool, default=True,
                         help="Whether to use amp in mixed precision")
+    parser.add_argument("--cuDNN", type=bool, default=True,
+                        help="Wether use cuDNN to celerate your program")
     parser.add_argument("--loss", type=str, default='bce',
                         choices=['BCEBlurWithLogitsLoss', 'mse', 'bce',
                                  'FocalLoss'],
