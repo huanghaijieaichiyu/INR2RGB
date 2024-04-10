@@ -113,8 +113,9 @@ def train(self):
 
     # 退火学习
     if self.coslr:
+
         Coslr = torch.optim.lr_scheduler.CosineAnnealingLR(
-            optimizer, self.epochs * 40, 1e-5)
+            optimizer, self.epochs * len(train_loader), 1e-5, -1, False)
 
     if self.loss == 'BCEBlurWithLogitsLoss':
         loss = BCEBlurWithLogitsLoss()
