@@ -131,6 +131,12 @@ def train(self):
     else:
         raise ValueError('No such optimizer: {}'.format(self.optimizer))
 
+    # 学习率退火
+    if self.coslr:
+        Coslr_d = torch.optim.lr_scheduler.CosineAnnealingLR(
+            d_optimizer, 100, 0)
+        Coslr_g = torch.optim.lr_scheduler.CosineAnnealingLR(
+            g_optimizer, 100, 0)
     if self.loss == 'BCEBlurWithLogitsLoss':
         loss = BCEBlurWithLogitsLoss()
     elif self.loss == 'mse':
@@ -224,10 +230,10 @@ def train(self):
                 d_fake_output = loss(fake_outputs, torch.zeros_like(
                     fake_outputs))  # D 希望 fake_loss 为 0
 
-                d_output = d_real_output + d_fake_output
+                d_output = (d_real_output + d_fake_output)*0.5
                 d_output.backward()
                 d_optimizer.step()
-
+                Coslr_d.step()
                 '''--------------- 训练生成器 ----------------'''
                 fake = generator(gray)
                 g_optimizer.zero_grad()
@@ -236,6 +242,7 @@ def train(self):
                     fake_inputs))  # G 希望 fake_loss 为 1
                 g_output.backward()
                 g_optimizer.step()
+                Coslr_g.step()
 
             # 判断模型是否需要提前终止
             if per_G_loss < g_output.item() and per_D_loss > d_output.item():
@@ -341,6 +348,8 @@ def parse_args():
                         help="adam: decay of first order momentum of gradient")  # 动量梯度下降第一个参数
     parser.add_argument("--b2", type=float, default=0.999,
                         help="adam: decay of first order momentum of gradient")  # 动量梯度下降第二个参数
+    parser.add_argument("--coslr", type=bool, default=True,
+                        help="using cosine learning decay")
     parser.add_argument("--device", type=str, default='cuda', choices=['cpu', 'cuda'],
                         help="select your device to train, if you have a gpu, use 'cuda:0'!")  # 训练设备
     parser.add_argument("--save_path", type=str, default='runs/',
