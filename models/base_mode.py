@@ -65,7 +65,7 @@ class Discriminator(nn.Module):
 
     def __init__(self):
         super(Discriminator, self).__init__()
-        self.conv_in = nn.Sequential(Conv(2, 16, 3, act=False),
+        self.conv_in = nn.Sequential(Conv(2, 16, 3, 2, act=False),
                                      nn.LeakyReLU())
         self.conv1 = nn.Sequential(Conv(16, 32, 3, 2, act=False),
                                    nn.LeakyReLU(),
@@ -78,29 +78,23 @@ class Discriminator(nn.Module):
                                    nn.LeakyReLU(),
                                    nn.MaxPool2d(3, 2, 1)
                                    )
-        self.conv_out = Conv(4, 1, 3, act=False)  # 记得替换激活函数
-        # self.flatten = nn.Flatten()
+        self.conv_out = Conv(4, 1, 3, 2, act=False)  # 记得替换激活函数
+        self.flatten = nn.Flatten()
         self.sig = nn.Sigmoid()
-        '''self.linear = nn.Sequential(nn.Linear(1024, 512),
-                                    nn.LeakyReLU(),
-                                    nn.Linear(512, 128),
-                                    nn.LeakyReLU(),
-                                    nn.Linear(128, 32),
-                                    nn.LeakyReLU(),
-                                    nn.Linear(32, 16),
-                                    nn.LeakyReLU(),
-                                    nn.Linear(16, 8),
-                                    nn.LeakyReLU(),
-                                    nn.Linear(8, 4),
-                                    nn.LeakyReLU(),
-                                    nn.Linear(4, 1)
-                                    )'''
+        self.liner = nn.Sequential(nn.Linear(512, 128),
+                                   nn.LeakyReLU(),
+                                   nn.Linear(128, 32),
+                                   nn.LeakyReLU(),
+                                   nn.Linear(32, 8),
+                                   nn.LeakyReLU(),
+                                   nn.Linear(8, 1)
+                                   )
 
     def forward(self, x):
         x1 = self.conv_in(x)
         x2 = self.conv1(x1)
         x3 = self.conv_out(x2)
-        # x4 = self.flatten(x3)
+        x4 = self.flatten(x3)
         # x5 = self.linear(x4)  # 此处切换全连接 或者 深度卷积层
         x = self.sig(x3)
 
@@ -109,7 +103,7 @@ class Discriminator(nn.Module):
 
 if __name__ == '__main__':
     model = Discriminator()
-    #model_ = Generator()
+    # model_ = Generator()
     d_params, d_macs = model_structure(model, (2, 256, 256))
-    #d_params, d_macs = model_structure(model_, (1, 256, 256))
+    # d_params, d_macs = model_structure(model_, (1, 256, 256))
     print(d_params, d_macs)
