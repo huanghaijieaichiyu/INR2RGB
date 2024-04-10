@@ -187,7 +187,7 @@ def train(self):
     # 学习率退火
     if self.coslr:
         Coslr_d = torch.optim.lr_scheduler.CosineAnnealingLR(
-            d_optimizer, 100, 0)
+            d_optimizer, len(train_loader) * self.epochs, 1e-6)
         Coslr_g = torch.optim.lr_scheduler.CosineAnnealingLR(
             g_optimizer, 100, 0)
 >>>>>>> dbf4e02 (updatas)
