@@ -51,7 +51,6 @@ class MyDataset(Dataset):
     def __getitem__(self, index):
         img_path = self.images[index]
         label = self.labels[index]
-        img = Image.open(img_path)
-        img = img.resize(self.img_size)
+        img = Image.open(img_path).resize(self.img_size)
         img = self.transform(img)
         return img, label
