@@ -2,8 +2,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-from models.Conv2dSAME import Conv2dSame
-from models.common import Conv, C2f, CA, SPPELAN, RepNCSPELAN4, Concat, EMA, ADown
+from models.common import Conv, C2f, CA, SPPELAN, RepNCSPELAN4, Concat, EMA, ADown, Conv2dSame
 
 
 # 模型体量太小的话，显卡占用会很低
@@ -88,22 +87,26 @@ class ConvertV2(nn.Module):
     def __init__(self) -> None:
         super(ConvertV2, self).__init__()
         self.conv1 = Conv(1, 8, 3)
-        self.conv2 = RepNCSPELAN4(8, 16, 16, 8)
-        self.conv3 = RepNCSPELAN4(16, 32, 32, 16)
+        self.conv2 = nn.Sequential(RepNCSPELAN4(8, 16, 16, 8),
+                                   ADown(16, 16),
+                                   C2f(16, 16, 2))
+        self.conv3 = nn.Sequential(RepNCSPELAN4(16, 32, 32, 16),
+                                   ADown(32, 32),
+                                   C2f(32, 32))
         self.conv4 = nn.Sequential(RepNCSPELAN4(32, 64, 64, 32),
-                                   EMA(64))
-        self.conv5 = SPPELAN(64, 64, 32)
-        self.conv6 = nn.Sequential(ADown(64, 64),
-                                   nn.Upsample(scale_factor=2))
-        self.conv7 = nn.Sequential(Conv(80, 64, 3),
                                    ADown(64, 64),
+                                   Conv(64, 128, 3),
+                                   C2f(128, 128))
+        self.conv5 = SPPELAN(128, 128, 64)
+        self.conv6 = nn.Sequential(C2f(128, 64),
                                    nn.Upsample(scale_factor=2))
-        self.conv8 = nn.Sequential(Conv(128, 64, 3),
-                                   ADown(64, 64),
+        self.conv7 = nn.Sequential(Conv(64, 64, 5),
                                    nn.Upsample(scale_factor=2))
-        self.conv9 = nn.Sequential(Conv(64, 32, 3),
+        self.conv8 = nn.Sequential(Conv(80, 64, 5),
+                                   nn.Upsample(scale_factor=2))
+        self.conv9 = nn.Sequential(C2f(64, 32),
                                    Conv(32, 16, 3))
-        self.conv10 = nn.Sequential(Conv(16, 8, 3),
+        self.conv10 = nn.Sequential(C2f(16, 8),
                                     Conv(8, 2, 3, act=False)
                                     )
         self.tanh = nn.Tanh()
@@ -119,9 +122,8 @@ class ConvertV2(nn.Module):
         x6 = self.conv6(x5)
 
         # neck net
-        x7 = self.concat([x2, x6])
-        x7 = self.conv7(x7)
-        x7 = self.concat([x5, x7])
+        x7 = self.conv7(x6)
+        x7 = self.concat([x2, x7])
         x = self.conv8(x7)
         x = self.conv9(x)
         x = self.conv10(x)
