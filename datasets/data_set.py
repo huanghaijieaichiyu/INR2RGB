@@ -1,7 +1,6 @@
 from pathlib import Path
 
-import cv2
-import numpy as np
+from PIL import Image
 from torch.utils.data import Dataset
 from torchvision.transforms import transforms
 
@@ -52,15 +51,7 @@ class MyDataset(Dataset):
     def __getitem__(self, index):
         img_path = self.images[index]
         label = self.labels[index]
-        img = cv2.imread(img_path)
-        img = cv2.resize(img, self.img_size)
-        img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
-        """
-        cv2.imshow('img', img)
-        k = cv2.waitKey(0)
-        if k == 27:
-            cv2.destroyAllWindows()
-        """
-        img = np.array(img)
+        img = Image.open(img_path)
+        img = img.resize(self.img_size)
         img = self.transform(img)
         return img, label
