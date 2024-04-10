@@ -223,7 +223,7 @@ def train(self):
 def parse_args():
     parser = argparse.ArgumentParser()  # 命令行选项、参数和子命令解析器
     parser.add_argument("--data", type=str,
-                        help="path to dataset", default='../datasets/coco/images')
+                        help="path to dataset", default='../datasets/coco5000')
     parser.add_argument("--epochs", type=int, default=1000,
                         help="number of epochs of training")  # 迭代次数
     parser.add_argument("--batch_size", type=int, default=8,
