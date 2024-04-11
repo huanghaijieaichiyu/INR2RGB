@@ -267,8 +267,7 @@ def train(self):
                 break
 
             # 图像拼接还原
-            fake_tensor = torch.zeros(
-                (self.batch_size, 3, self.img_size[0], self.img_size[1]), dtype=torch.float32)
+            fake_tensor = torch.zeros_like(img.detach(), dtype=torch.float32)
             fake_tensor[:, 0, :, :] = gray[:, 0, :, :]  # 主要切片位置
             fake_tensor[:, 1:, :, :] = lamb * fake
             fake_img = np.array(
