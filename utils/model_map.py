@@ -1,8 +1,9 @@
 from ptflops import get_model_complexity_info
-import torch
+from copy import copy
 
 
 def model_structure(model, img_size):
+    model_name = copy(model)
     blank = ' '
     print('-' * 142)
     print('|' + ' ' * 17 + 'weight name' + ' ' * 40 + '|' \
@@ -11,8 +12,8 @@ def model_structure(model, img_size):
     print('-' * 142)
     num_para = 0
     type_size = 1  # 如果是浮点数就是4
-    macs, params = get_model_complexity_info(model, img_size, as_strings=False, print_per_layer_stat=False,
-                                             verbose=False)
+    macs, _ = get_model_complexity_info(model_name, img_size, as_strings=False, print_per_layer_stat=False,
+                                        verbose=False)
     for index, (key, w_variable) in enumerate(model.named_parameters()):
         if len(key) <= 67:
             key = key + (57 - len(key)) * blank
@@ -34,4 +35,4 @@ def model_structure(model, img_size):
     print('The Gflops of {}: {:.2f} G'.format(model._get_name(), (2 * int(macs) * 1e-9)))
     print('-' * 142)
 
-    return num_para * 1e-6, macs * 1e-9
+    return num_para * 1e-6, 2 * macs * 1e-9
