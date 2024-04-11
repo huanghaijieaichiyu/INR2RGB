@@ -2,3 +2,4 @@
 /coco/*
 /.idea/*
 /venv/*
+/__pycache/*
