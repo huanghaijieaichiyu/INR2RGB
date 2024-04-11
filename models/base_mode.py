@@ -155,30 +155,16 @@ class Discriminator(nn.Module):
                                    nn.MaxPool2d(3, 2, 1)
                                    )
         self.conv_out = Conv(4, 1, 3, act=False)  # 记得替换激活函数
-        # self.flatten = nn.Flatten()
+        self.liner = nn.Linear(8192, 1)
         self.sig = nn.Sigmoid()
-        '''self.linear = nn.Sequential(nn.Linear(1024, 512),
-                                    nn.LeakyReLU(),
-                                    nn.Linear(512, 128),
-                                    nn.LeakyReLU(),
-                                    nn.Linear(128, 32),
-                                    nn.LeakyReLU(),
-                                    nn.Linear(32, 16),
-                                    nn.LeakyReLU(),
-                                    nn.Linear(16, 8),
-                                    nn.LeakyReLU(),
-                                    nn.Linear(8, 4),
-                                    nn.LeakyReLU(),
-                                    nn.Linear(4, 1)
-                                    )'''
 
     def forward(self, x):
         x1 = self.conv_in(x)
         x2 = self.conv1(x1)
         x3 = self.conv_out(x2)
-        # x4 = self.flatten(x3)
-        # x5 = self.linear(x4)  # 此处切换全连接 或者 深度卷积层
-        x = self.sig(x3)
+        x4 = x3.view(x.shape[0], -1)
+
+        x = self.sig(x4)
 
         return x
 

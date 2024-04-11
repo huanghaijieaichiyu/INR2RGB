@@ -278,7 +278,7 @@ def train(self):
 def parse_args():
     parser = argparse.ArgumentParser()  # 命令行选项、参数和子命令解析器
     parser.add_argument("--data", type=str,
-                        help="path to dataset", default='../datasets/coco/images')
+                        default='../datasets/coco5000', help="path to dataset")
     parser.add_argument("--epochs", type=int, default=1000,
                         help="number of epochs of training")  # 迭代次数
     parser.add_argument("--batch_size", type=int, default=8,
@@ -299,7 +299,7 @@ def parse_args():
                         choices=['BCEBlurWithLogitsLoss', 'mse', 'bce',
                                  'FocalLoss'],
                         help="loss function")
-    parser.add_argument("--lr", type=float, default=1e-3,
+    parser.add_argument("--lr", type=float, default=3.5e-4,
                         help="learning rate, for adam is 1-e3, SGD is 1-e2")  # 学习率
     parser.add_argument("--momentum", type=float, default=0.9,
                         help="momentum for adam and SGD")
@@ -309,8 +309,10 @@ def parse_args():
                         help="adam: decay of first order momentum of gradient")  # 动量梯度下降第一个参数
     parser.add_argument("--b2", type=float, default=0.999,
                         help="adam: decay of first order momentum of gradient")  # 动量梯度下降第二个参数
-    parser.add_argument("--coslr", type=bool, default=True,
-                        help="using cosine lr rate")
+    parser.add_argument("--coslr", type=bool, default=False,
+                        help="using cosine learning decay")
+    parser.add_argument("--llamb", type=bool, default=False,
+                        help="using yolo tactic")
     parser.add_argument("--device", type=str, default='cuda', choices=['cpu', 'cuda'],
                         help="select your device to train, if you have a gpu, use 'cuda:0'!")  # 训练设备
     parser.add_argument("--save_path", type=str, default='runs/',
