@@ -79,7 +79,7 @@ class ConvertV1(nn.Module):
         return x
 
 
-class ConvertV2(nn.Module):
+class Generator(nn.Module):
     """
     this is a light net for V1
     """
