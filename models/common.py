@@ -6,7 +6,36 @@ import torch
 import torch.nn as nn
 from timm.models.layers import DropPath
 
-'__init__'
+# 解决pytorch conv2d stride与padding=‘same’ 不能同时使用问题
+
+
+class Conv2dSame(torch.nn.Conv2d):
+
+    def calc_same_pad(self, i: int, k: int, s: int, d: int) -> int:
+        return max((math.ceil(i / s) - 1) * s + (k - 1) * d + 1 - i, 0)
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        ih, iw = x.size()[-2:]
+
+        pad_h = self.calc_same_pad(
+            i=ih, k=self.kernel_size[0], s=self.stride[0], d=self.dilation[0])
+        pad_w = self.calc_same_pad(
+            i=iw, k=self.kernel_size[1], s=self.stride[1], d=self.dilation[1])
+
+        if pad_h > 0 or pad_w > 0:
+            x = F.pad(
+                x, [pad_w // 2, pad_w - pad_w // 2,
+                    pad_h // 2, pad_h - pad_h // 2]
+            )
+        return F.conv2d(
+            x,
+            self.weight,
+            self.bias,
+            self.stride,
+            self.padding,
+            self.dilation,
+            self.groups,
+        )
 
 
 class Mlp(nn.Module):
@@ -1004,87 +1033,3 @@ class EMA(nn.Module):
         weights = (torch.matmul(x11, x12) + torch.matmul(x21, x22)
                    ).reshape(b * self.groups, 1, h, w)
         return (group_x * weights.sigmoid()).reshape(b, c, h, w)
-
-
-# CBAM
-class ChannelAttention(nn.Module):
-    def __init__(self, in_planes, ratio=16):
-        super(ChannelAttention, self).__init__()
-        self.avg_pool = nn.AdaptiveAvgPool2d(1)
-        self.max_pool = nn.AdaptiveMaxPool2d(1)
-        self.f1 = nn.Conv2d(in_planes, in_planes // ratio, 1, bias=False)
-        self.relu = nn.ReLU()
-        self.f2 = nn.Conv2d(in_planes // ratio, in_planes, 1, bias=False)
-        self.sigmoid = nn.Sigmoid()
-
-    def forward(self, x):
-        avg_out = self.f2(self.relu(self.f1(self.avg_pool(x))))
-        max_out = self.f2(self.relu(self.f1(self.max_pool(x))))
-        out = self.sigmoid(avg_out + max_out)
-        return out
-
-
-class SpatialAttention(nn.Module):
-    def __init__(self, kernel_size=7):
-        super(SpatialAttention, self).__init__()
-        assert kernel_size in (3, 7), 'kernel size must be 3 or 7'
-        padding = 3 if kernel_size == 7 else 1
-        # (特征图的大小-算子的size+2*padding)/步长+1
-        self.conv = nn.Conv2d(2, 1, kernel_size, padding=padding, bias=False)
-        self.sigmoid = nn.Sigmoid()
-
-    def forward(self, x):
-        # 1*h*w
-        avg_out = torch.mean(x, dim=1, keepdim=True)
-        max_out, _ = torch.max(x, dim=1, keepdim=True)
-        x = torch.cat([avg_out, max_out], dim=1)
-        # 2*h*w
-        x = self.conv(x)
-        # 1*h*w
-        return self.sigmoid(x)
-
-
-class CBAM(nn.Module):
-    # ch_in, ch_out, number, shortcut, groups, expansion
-    def __init__(self, c1, c2, ratio=16, kernel_size=7):
-        super(CBAM, self).__init__()
-        self.channel_attention = ChannelAttention(c1, ratio)
-        self.spatial_attention = SpatialAttention(kernel_size)
-
-    def forward(self, x):
-        out = self.channel_attention(x) * x
-        # c*h*w
-        # c*h*w * 1*h*w
-        out = self.spatial_attention(out) * out
-        return out
-
-#  标准卷积
-
-
-class Conv2dSame(torch.nn.Conv2d):
-
-    def calc_same_pad(self, i: int, k: int, s: int, d: int) -> int:
-        return max((math.ceil(i / s) - 1) * s + (k - 1) * d + 1 - i, 0)
-
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
-        ih, iw = x.size()[-2:]
-
-        pad_h = self.calc_same_pad(
-            i=ih, k=self.kernel_size[0], s=self.stride[0], d=self.dilation[0])
-        pad_w = self.calc_same_pad(
-            i=iw, k=self.kernel_size[1], s=self.stride[1], d=self.dilation[1])
-
-        if pad_h > 0 or pad_w > 0:
-            x = F.pad(
-                x, [pad_w // 2, pad_w - pad_w // 2,
-                    pad_h // 2, pad_h - pad_h // 2]
-            )
-        return F.conv2d(
-            x,
-            self.weight,
-            self.bias,
-            self.stride,
-            self.padding,
-            self.dilation,
-            self.groups,
-        )
