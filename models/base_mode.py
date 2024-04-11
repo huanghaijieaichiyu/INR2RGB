@@ -79,7 +79,7 @@ class Discriminator(nn.Module):
                                    nn.MaxPool2d(3, 2, 1)
                                    )
         self.conv_out = Conv(4, 1, 3, act=False)  # 记得替换激活函数
-        self.liner = nn.Linear(8192, 1)
+        self.liner = nn.Linear(16, 1)
         self.sig = nn.Sigmoid()
 
     def forward(self, x):
@@ -87,8 +87,9 @@ class Discriminator(nn.Module):
         x2 = self.conv1(x1)
         x3 = self.conv_out(x2)
         x4 = x3.view(x.shape[0], -1)
+        x5 = self.liner(x4)
 
-        x = self.sig(x4)
+        x = self.sig(x5)
 
         return x
 

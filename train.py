@@ -365,7 +365,7 @@ def parse_args():
                         help="adam: decay of first order momentum of gradient")  # 动量梯度下降第二个参数
     parser.add_argument("--coslr", type=bool, default=False,
                         help="using cosine learning decay")
-    parser.add_argument("--llamb", type=bool, default=False,
+    parser.add_argument("--llamb", type=bool, default=True,
                         help="using yolo tactic")
     parser.add_argument("--device", type=str, default='cuda', choices=['cpu', 'cuda'],
                         help="select your device to train, if you have a gpu, use 'cuda:0'!")  # 训练设备
