@@ -112,13 +112,16 @@ def predict_live(self):
     model.load_state_dict(checkpoint['net'])
     model.to(device)
     cap = cv2.VideoCapture(2)  # 读取图像
+    fourcc = cv2.VideoWriter_fourcc(*"mp4v")
+    write = cv2.VideoWriter()
+    write.open(Path + '/fake.mp4', fourcc=fourcc, fps=60, isColor=True)
     img_2gray = transforms.Grayscale()
     model.eval()
     torch.no_grad()
     if not os.path.exists(os.path.join(self.save_path, 'predictions')):
         os.makedirs(os.path.join(self.save_path, 'predictions'))
     while cap.isOpened():
-        rect, frame = cap.read()
+        _, frame = cap.read()
         frame_pil = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
         # 是否需要resize取决于新图片格式与训练时的是否一致
         frame_pil = cv2.resize(frame_pil, self.img_size)
@@ -140,11 +143,15 @@ def predict_live(self):
         fake[:, :, 1:] = fake_ab * 128
         fake = cv2.cvtColor(fake, cv2.COLOR_Lab2RGB)
         # fake *= 255.
-        fake = cv2.resize(fake, (640, 480))  # 维度还没降下来
+        fake = cv2.resize(fake, (cap.get(cv2.CAP_PROP_FRAME_HEIGHT), cap.get(
+            cv2.CAP_PROP_FRAME_WIDTH)))  # 维度还没降下来
 
         cv2.imshow('fake', fake)
 
         cv2.imshow('real', frame)
+
+        # 写入文件
+        write.write(fake)
 
         key = cv2.waitKey(1)
         if key == 27:
