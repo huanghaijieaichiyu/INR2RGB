@@ -83,14 +83,13 @@ def predict(self):
                              drop_last=True)
     pbar = tqdm(enumerate(test_loader), total=len(test_loader), bar_format='{l_bar}{bar:10}| {n_fmt}/{'
                                                                            'total_fmt} {elapsed}')
-                                                                           'total_fmt} {elapsed}')
     model.eval()
     torch.no_grad()
-    i= 0
+    i = 0
     if not os.path.exists(os.path.join(path, 'predictions')):
         os.makedirs(os.path.join(path, 'predictions'))
     for data in pbar:
-        target, (img, label)= data
+        target, (img, label) = data
 
         img_lab = PSrgb2lab(img)
         gray, _, _ = torch.split(img_lab, [1, 1, 1], 1)

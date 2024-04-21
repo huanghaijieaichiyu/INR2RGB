@@ -2,4 +2,6 @@
 /coco/*
 /.idea/*
 /venv/*
-/__pycache/*
+models/__pycache__/base_mode.cpython-310.pyc
+models/__pycache__/common.cpython-310.pyc
+.gitignore
