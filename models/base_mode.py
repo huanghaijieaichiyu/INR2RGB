@@ -21,8 +21,10 @@ class Generator(nn.Module):
                                    )
         self.conv5 = nn.Sequential(SPPELAN(256, 256, 128),
                                    ADown(256, 256),
-                                   C2f(256, 128))
-        self.conv6 = nn.Sequential(nn.Upsample(scale_factor=2),
+                                   C2f(256, 512))
+        self.conv6 = nn.Sequential(C2f(512, 256),
+                                   Conv(256, 128),
+                                   nn.Upsample(scale_factor=2),
                                    C2f(128, 64))
         self.conv7 = nn.Sequential(C2f(64, 32),
                                    nn.Upsample(scale_factor=2))
