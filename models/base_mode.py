@@ -83,7 +83,7 @@ class Discriminator(nn.Module):
         self.conv_out = Conv(4, 1, 3, act=False)  # 记得替换激活函数
         self.flat = nn.Flatten()
         self.liner = nn.Sequential(nn.Linear(16, 8),
-                                   nn.LeakyReLU(),
+                                   nn.SiLU(),
                                    nn.Linear(8, 1),
                                    nn.SiLU())
 
