@@ -69,7 +69,7 @@ def train(self):
     print('Drawing model graph to tensorboard, you can check it with:http://127.0.0.1:6006 after running tensorboard '
           '--logdir={}'.format(os.path.join(self.save_path, 'tensorboard')))
     log.add_graph(generator, torch.randn(
-        1, 1, self.img_size[0], self.img_size[1]))
+        self.batch_size, 1, self.img_size[0], self.img_size[1]))
     print('Drawing dnoe!')
     print('-' * 100)
     print('Generator model info: \n')
@@ -221,7 +221,7 @@ def train(self):
             # print(img)
             # 对输入图像进行处理
             img_lab = PSrgb2lab(img)
-            gray, a, b = torch.split(img_lab, [1, 1, 1], 1)
+            gray, a, b = torch.split(img_lab, 1, 1)
             color = torch.cat([a, b], dim=1)
             lamb = 128.  # 取绝对值最大值，避免负数超出索引
             gray = gray.to(device)
@@ -249,6 +249,7 @@ def train(self):
                 d_optimizer.step()
                 if self.llamb or self.coslr:
                     LR_D.step()
+
                 '''--------------- 训练生成器 ----------------'''
                 fake = generator(gray)
                 g_optimizer.zero_grad()
@@ -267,7 +268,7 @@ def train(self):
                 break
 
             # 图像拼接还原
-            fake_tensor = torch.zeros_like(img.detach(), dtype=torch.float32)
+            fake_tensor = torch.zeros_like(img, dtype=torch.float32)
             fake_tensor[:, 0, :, :] = gray[:, 0, :, :]  # 主要切片位置
             fake_tensor[:, 1:, :, :] = lamb * fake
             fake_img = np.array(
@@ -339,7 +340,7 @@ def parse_args():
                         default=(256, 256), help="size of the image")
     parser.add_argument("--optimizer", type=str, default='Adam',
                         choices=['AdamW', 'SGD', 'Adam', 'lion', 'rmp'])
-    parser.add_argument("--num_workers", type=int, default=20,
+    parser.add_argument("--num_workers", type=int, default=10,
                         help="number of data loading workers, if in windows, must be 0"
                         )
     parser.add_argument("--seed", type=int, default=1999, help="random seed")
@@ -365,7 +366,7 @@ def parse_args():
                         help="adam: decay of first order momentum of gradient")  # 动量梯度下降第二个参数
     parser.add_argument("--coslr", type=bool, default=False,
                         help="using cosine learning decay")
-    parser.add_argument("--llamb", type=bool, default=True,
+    parser.add_argument("--llamb", type=bool, default=False,
                         help="using yolo tactic")
     parser.add_argument("--device", type=str, default='cuda', choices=['cpu', 'cuda'],
                         help="select your device to train, if you have a gpu, use 'cuda:0'!")  # 训练设备
