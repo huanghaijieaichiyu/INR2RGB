@@ -9,8 +9,8 @@ import torch
 from skimage.metrics import peak_signal_noise_ratio
 from timm.optim import Lion, RMSpropTF
 from torch import nn
-from torch.cuda.amp import autocast
 from torch.backends import cudnn
+from torch.cuda.amp import autocast
 from torch.optim.lr_scheduler import LambdaLR
 from torch.utils import tensorboard
 from torch.utils.data import DataLoader
@@ -23,6 +23,7 @@ from utils.color_trans import PSlab2rgb, PSrgb2lab
 from utils.loss import BCEBlurWithLogitsLoss, FocalLoss
 from utils.model_map import model_structure
 from utils.save_path import Path
+from utils.wgb import cal_gp
 
 
 # 初始化随机种子
@@ -134,7 +135,6 @@ def train(self):
 
     # 学习率退火
     if self.lr_deduce == 'coslr':
-
         LR_D = torch.optim.lr_scheduler.CosineAnnealingLR(
             d_optimizer, self.epochs, 1e-6)
         LR_G = torch.optim.lr_scheduler.CosineAnnealingLR(
@@ -142,8 +142,10 @@ def train(self):
 
     if self.lr_deduce == 'llamb':
         assert not self.coslr, 'do not using tow stagics at the same time!'
+
         def lf(x): return (
-            (1 + math.cos(x * math.pi / self.epochs)) / 2) * (1 - 0.2) + 0.2
+                (1 + math.cos(x * math.pi / self.epochs)) / 2) * (1 - 0.2) + 0.2
+
         LR_G = LambdaLR(
             g_optimizer, lr_lambda=lf, last_epoch=-1, verbose=False)
         LR_D = LambdaLR(d_optimizer, lr_lambda=lf,
@@ -152,9 +154,11 @@ def train(self):
     if self.lr_deduce == 'reduceLR':
         assert not self.llamb or self.coslr, 'do not using tow stagics at the same time!'
         LR_D = torch.optim.lr_scheduler.ReduceLROnPlateau(
-            d_optimizer, 'min', factor=0.2, patience=10, verbose=False, threshold=1e-4, threshold_mode='rel', cooldown=10, min_lr=1e-6, eps=1e-5)
+            d_optimizer, 'min', factor=0.2, patience=10, verbose=False, threshold=1e-4, threshold_mode='rel',
+            cooldown=10, min_lr=1e-6, eps=1e-5)
         LR_G = torch.optim.lr_scheduler.ReduceLROnPlateau(
-            g_optimizer, 'min', factor=0.2, patience=10, verbose=False, threshold=1e-4, threshold_mode='rel', cooldown=10, min_lr=1e-6, eps=1e-5)
+            g_optimizer, 'min', factor=0.2, patience=10, verbose=False, threshold=1e-4, threshold_mode='rel',
+            cooldown=10, min_lr=1e-6, eps=1e-5)
 
     # 损失函数
     if self.loss == 'BCEBlurWithLogitsLoss':
@@ -303,8 +307,7 @@ def train(self):
             LR_D.step(d_output)
             LR_G.step(g_output)
 
-        if g_output is None:
-
+        if g_output == 0 or d_output == 0:
             break
 
         g_checkpoint = {
