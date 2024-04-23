@@ -15,14 +15,12 @@ class Generator(nn.Module):
                                    )
         self.conv3 = nn.Sequential(C2f(16, 32, shortcut=True),
                                    Conv(32, 64),
-                                   EMA(64),
                                    ADown(64, 64),
                                    Conv(64, 128),
                                    EMA(128))
         self.conv4 = nn.Sequential(C2f(128, 256, shortcut=True),
                                    ADown(256, 256),
-                                   Conv(256, 512),
-                                   EMA(512)
+                                   Conv(256, 512)
                                    )
         self.conv5 = nn.Sequential(SPPELAN(512, 512, 256),
                                    Conv(512, 256))

@@ -352,8 +352,8 @@ def train(self):
         log.add_scalar('PSN', np.mean(PSN), epoch + 1)
         log.add_scalar('learning rate', g_optimizer.state_dict()['param_groups'][0]['lr'], epoch + 1)
 
-        log.add_images('real', img if img in locals() else torch.zeros_like(img), epoch + 1)
-        log.add_images('fake', PSlab2rgb(fake_tensor) if fake_tensor in locals() else torch.zeros_like(img), epoch + 1)
+        log.add_images('real', img, epoch + 1)
+        log.add_images('fake', PSlab2rgb(fake_tensor), epoch + 1)
 
     log.close()
 
@@ -380,7 +380,7 @@ def parse_args():
                         help="Whether to use amp in mixed precision")
     parser.add_argument("--cuDNN", type=bool, default=True,
                         help="Wether use cuDNN to celerate your program")
-    parser.add_argument("--loss", type=str, default='mse',
+    parser.add_argument("--loss", type=str, default='BCEBlurWithLogitsLoss',
                         choices=['BCEBlurWithLogitsLoss', 'mse', 'bce',
                                  'FocalLoss', 'wgb'],
                         help="loss function")
