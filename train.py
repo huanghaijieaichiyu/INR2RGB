@@ -23,7 +23,6 @@ from utils.color_trans import PSlab2rgb, PSrgb2lab
 from utils.loss import BCEBlurWithLogitsLoss, FocalLoss
 from utils.model_map import model_structure
 from utils.save_path import Path
-from utils.wgb import cal_gp
 
 
 # 初始化随机种子
@@ -137,9 +136,9 @@ def train(self):
     if self.lr_deduce == 'coslr':
 
         LR_D = torch.optim.lr_scheduler.CosineAnnealingLR(
-            d_optimizer, len(train_loader) * self.epochs, 1e-6)
+            d_optimizer, self.epochs, 1e-6)
         LR_G = torch.optim.lr_scheduler.CosineAnnealingLR(
-            g_optimizer, len(train_loader) * self.epochs, 1e-6)
+            g_optimizer, self.epochs, 1e-6)
 
     if self.lr_deduce == 'llamb':
         assert not self.coslr, 'do not using tow stagics at the same time!'
@@ -243,17 +242,13 @@ def train(self):
                 fake = generator(gray).detach()  # 记得输入要换成明度！！！
                 fake_outputs = discriminator(fake)
 
-                gp = cal_gp(discriminator, color / lamb, fake,
-                            True if self.device == 'cuda' else False)  # 梯度惩罚
-                d_output = torch.mean(real_outputs) + \
-                    torch.mean(fake_outputs) + 10 * gp
                 d_real_output = loss(real_outputs, torch.ones_like(
                     real_outputs))  # D 希望 real_loss 为 1
 
                 d_fake_output = loss(fake_outputs, torch.zeros_like(
                     fake_outputs))  # D 希望 fake_loss 为 0
 
-                d_output = (d_real_output + d_fake_output + gp) / 3.
+                d_output = d_real_output + d_fake_output
 
                 d_output.backward()
                 d_optimizer.step()
@@ -265,7 +260,6 @@ def train(self):
 
                 fake_inputs = discriminator(fake)
 
-                g_output = torch.mean(fake_inputs)
                 g_output = loss(fake_inputs, torch.ones_like(
                     fake_inputs))  # G 希望 fake 为 1
 
@@ -283,10 +277,12 @@ def train(self):
             fake_tensor = torch.zeros_like(img, dtype=torch.float32)
             fake_tensor[:, 0, :, :] = gray[:, 0, :, :]  # 主要切片位置
             fake_tensor[:, 1:, :, :] = lamb * fake
+
             fake_img = np.array(
                 img_pil(PSlab2rgb(fake_tensor)[0]), dtype=np.float32)
             # print(fake_img)
             # 加入新的评价指标：PSN,SSIM
+
             real_pil = img_pil(img[0])
             psn = peak_signal_noise_ratio(
                 np.array(real_pil, dtype=np.float32) / 255., fake_img / 255., data_range=1)
@@ -306,6 +302,10 @@ def train(self):
         elif self.lr_deduce == 'reduceLR':
             LR_D.step(d_output)
             LR_G.step(g_output)
+
+        if g_output is None:
+
+            break
 
         g_checkpoint = {
             'net': generator.state_dict(),
@@ -380,7 +380,7 @@ def parse_args():
                         choices=['BCEBlurWithLogitsLoss', 'mse', 'bce',
                                  'FocalLoss', 'wgb'],
                         help="loss function")
-    parser.add_argument("--lr", type=float, default=3.5e-3,
+    parser.add_argument("--lr", type=float, default=4.5e-3,
                         help="learning rate, for adam is 1-e3, SGD is 1-e2")  # 学习率
     parser.add_argument("--momentum", type=float, default=0.9,
                         help="momentum for adam and SGD")
