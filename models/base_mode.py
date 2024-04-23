@@ -10,29 +10,25 @@ class Generator(nn.Module):
     def __init__(self) -> None:
         super(Generator, self).__init__()
         self.conv1 = Conv(1, 8)
-        self.conv2 = nn.Sequential(C2f(8, 16, shortcut=True),
-                                   ADown(16, 16)
+        self.conv2 = nn.Sequential(Conv(8, 16, 3, 2),
+                                   C2f(16, 32, shortcut=True)
                                    )
-        self.conv3 = nn.Sequential(C2f(16, 32, shortcut=True),
-                                   Conv(32, 64),
-                                   ADown(64, 64),
-                                   Conv(64, 128),
-                                   EMA(128))
-        self.conv4 = nn.Sequential(C2f(128, 256, shortcut=True),
-                                   ADown(256, 256),
-                                   Conv(256, 512)
+        self.conv3 = nn.Sequential(Conv(32, 64, 3, 2),
+                                   C2f(64, 128, shortcut=True)
+                                   )
+        self.conv4 = nn.Sequential(Conv(128, 256, 3, 2),
+                                   C2f(256, 512, shortcut=True)
                                    )
         self.conv5 = nn.Sequential(SPPELAN(512, 512, 256),
-                                   Conv(512, 256))
+                                   Conv(512, 256, 3))
         self.conv6 = nn.Sequential(C2f(256, 128, shortcut=False),
                                    nn.Upsample(scale_factor=2),
                                    Conv(128, 64))
         self.conv7 = nn.Sequential(C2f(64, 32, shortcut=False),
                                    nn.Upsample(scale_factor=2))
-        self.conv8 = nn.Sequential(C2f(48, 64, shortcut=False),
+        self.conv8 = nn.Sequential(C2f(64, 64, shortcut=True),
                                    nn.Upsample(scale_factor=2),
-                                   Conv(64, 128),
-                                   EMA(128)
+                                   Conv(64, 128)
                                    )
         self.conv9 = nn.Sequential(C2f(128, 64, shortcut=False),
                                    Conv(64, 32)
@@ -76,37 +72,31 @@ class Discriminator(nn.Module):
         super(Discriminator, self).__init__()
         self.conv_in = nn.Sequential(Conv(2, 16, 3)
                                      )
-        self.conv1 = nn.Sequential(Conv(16, 32, 3, 2),
+        self.conv1 = nn.Sequential(C2f(16, 32, shortcut=True),
+                                   Conv(32, 64, 3, 2),
+                                   Conv(64, 128, 3),
+                                   C2f(128, 64, shortcut=True),
+                                   Conv(64, 32, 3, 2),
                                    Conv(32, 16, 3, 2),
-                                   nn.MaxPool2d(3, 2, 1),
-                                   Conv(16, 8, 3, 2),
+                                   C2f(16, 8, shortcut=True),
                                    Conv(8, 4, 3, 2),
-                                   nn.MaxPool2d(3, 2, 1)
                                    )
-        self.conv_out = Conv(4, 1, 3)  # 记得替换激活函数
-        self.flat = nn.Flatten()
-        self.liner = nn.Sequential(nn.Linear(16, 32),
-                                   nn.LeakyReLU(),
-                                   nn.Linear(32, 64),
-                                   nn.LeakyReLU(),
-                                   nn.Linear(64, 8),
-                                   nn.LeakyReLU(),
-                                   nn.Linear(8, 1),
-                                   nn.Sigmoid())
+        self.conv_out = Conv(4, 1, 3, act=False)  # 记得替换激活函数
+
+        self.sigmoid = nn.Sigmoid()
 
     def forward(self, x):
         x1 = self.conv_in(x)
         x2 = self.conv1(x1)
         x3 = self.conv_out(x2)
-        x4 = self.flat(x3)
-        x = self.liner(x4)
+        x = self.sigmoid(x3)
 
         return x
 
 
 if __name__ == '__main__':
-    # model = Discriminator()
-    model_ = Generator()
-    # d_params, d_macs = model_structure(model, (2, 256, 256))
-    d_params, d_macs = model_structure(model_, (1, 256, 256))
+    model = Discriminator()
+    # model_ = Generator()
+    d_params, d_macs = model_structure(model, (2, 256, 256))
+    # d_params, d_macs = model_structure(model_, (1, 256, 256))
     print(d_params, d_macs)
