@@ -1,7 +1,7 @@
 import os
 
 
-def Path(path, model='train'):
+def save_path(path, model='train'):
     file_path = os.path.join(path, model)
     i = 1
     while os.path.exists(file_path):

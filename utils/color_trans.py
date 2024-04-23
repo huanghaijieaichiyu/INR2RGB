@@ -14,6 +14,7 @@ def anti_F(X):  # 逆操作。
     tFX[index] = torch.pow(X[index], 3)
     return tFX
 
+
 def gamma(r):
     r2 = r / 12.92
     index = r > 0.04045  # pow:0.0031308072830676845,/12.92:0.0031308049535603713
@@ -27,14 +28,6 @@ def anti_g(r):
     r2[index] = torch.pow(r[index], 1.0 / 2.4) * 1.055 - 0.055
     return r2
 
-
-# Mps = np.array([[0.436052025, 0.385081593, 0.143087414],
-#               [0.222491598, 0.716886060, 0.060621486],
-#               [0.013929122, 0.097097002, 0.714185470]])
-# Mpst = np.linalg.inv(Mps)
-# [[ 3.13405134 -1.61702771 -0.49065221]
-#  [-0.97876273  1.91614223  0.03344963]
-#  [ 0.07194258 -0.22897118  1.40521831]]
 
 def PSrgb2lab(img):  # RGB img:[b,3,h,w]->lab,L[0,100],AB[-127,127]
     r = img[:, 0, :, :]
@@ -87,4 +80,3 @@ def PSlab2rgb(Lab):
     g = anti_g(g)
     b = anti_g(b)
     return torch.stack([r, g, b], dim=1)
-

@@ -22,8 +22,7 @@ from models.base_mode import Generator, Discriminator
 from utils.color_trans import PSlab2rgb, PSrgb2lab
 from utils.loss import BCEBlurWithLogitsLoss, FocalLoss
 from utils.model_map import model_structure
-from utils.save_path import Path
-from utils.wgb import cal_gp
+from utils.save_path import save_path
 
 
 # 初始化随机种子
@@ -40,7 +39,7 @@ def set_random_seed(seed=10, deterministic=False, benchmark=False):
 
 def train(self):
     # 避免同名覆盖
-    path = Path(self.save_path)
+    path = save_path(self.save_path)
     os.makedirs(os.path.join(path, 'generator'))
     os.makedirs(os.path.join(path, 'discriminator'))
     # 创建训练日志文件
@@ -350,9 +349,11 @@ def train(self):
 
         log.add_scalar('generation loss', np.mean(g_loss), epoch + 1)
         log.add_scalar('discrimination loss', np.mean(d_loss), epoch + 1)
+        log.add_scalar('PSN', np.mean(PSN), epoch + 1)
+        log.add_scalar('learning rate', g_optimizer.state_dict()['param_groups'][0]['lr'], epoch + 1)
 
-        log.add_images('real', img, epoch + 1)
-        log.add_images('fake', PSlab2rgb(fake_tensor), epoch + 1)
+        log.add_images('real', img if img in locals() else torch.zeros_like(img), epoch + 1)
+        log.add_images('fake', PSlab2rgb(fake_tensor) if fake_tensor in locals() else torch.zeros_like(img), epoch + 1)
 
     log.close()
 
@@ -367,7 +368,7 @@ def parse_args():
                         help="size of the batches")  # batch大小
     parser.add_argument("--img_size", type=tuple,
                         default=(256, 256), help="size of the image")
-    parser.add_argument("--optimizer", type=str, default='rmp',
+    parser.add_argument("--optimizer", type=str, default='Adam',
                         choices=['AdamW', 'SGD', 'Adam', 'lion', 'rmp'])
     parser.add_argument("--num_workers", type=int, default=10,
                         help="number of data loading workers, if in windows, must be 0"
@@ -383,13 +384,13 @@ def parse_args():
                         choices=['BCEBlurWithLogitsLoss', 'mse', 'bce',
                                  'FocalLoss', 'wgb'],
                         help="loss function")
-    parser.add_argument("--lr", type=float, default=4.5e-3,
+    parser.add_argument("--lr", type=float, default=4.5e-4,
                         help="learning rate, for adam is 1-e3, SGD is 1-e2")  # 学习率
     parser.add_argument("--momentum", type=float, default=0.9,
                         help="momentum for adam and SGD")
     parser.add_argument("--model", type=str, default="train",
                         help="train or test model")
-    parser.add_argument("--b1", type=float, default=0.9,
+    parser.add_argument("--b1", type=float, default=0.5,
                         help="adam: decay of first order momentum of gradient")  # 动量梯度下降第一个参数
     parser.add_argument("--b2", type=float, default=0.999,
                         help="adam: decay of first order momentum of gradient")  # 动量梯度下降第二个参数

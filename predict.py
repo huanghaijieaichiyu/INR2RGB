@@ -15,7 +15,7 @@ from utils.color_trans import PSrgb2lab, PSlab2rgb
 from models.base_mode import Generator
 from utils.color_trans import PSrgb2lab, PSlab2rgb
 from utils.model_map import model_structure
-from utils.save_path import Path
+from utils.save_path import save_path
 
 
 def parse_args():
@@ -60,7 +60,7 @@ def parse_args():
 
 def predict(self):
     # 防止同名覆盖
-    path = Path(self.save_path, model='predict')
+    path = save_path(self.save_path, model='predict')
     # 数据准备
     if self.device == 'cuda':
         device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
@@ -133,10 +133,10 @@ def predict_live(self):
     cap = cv2.VideoCapture(2)  # 读取图像
     fourcc = cv2.VideoWriter_fourcc(*"mp4v")
     write = cv2.VideoWriter()
-    write.open(Path + '/fake.mp4', fourcc=fourcc, fps=60, isColor=True)
+    write.open(save_path + '/fake.mp4', fourcc=fourcc, fps=60, isColor=True)
     fourcc = cv2.VideoWriter_fourcc(*"mp4v")
     write = cv2.VideoWriter()
-    write.open(Path + '/fake.mp4', fourcc=fourcc, fps=60, isColor=True)
+    write.open(save_path + '/fake.mp4', fourcc=fourcc, fps=60, isColor=True)
     img_2gray = transforms.Grayscale()
     model.eval()
     torch.no_grad()

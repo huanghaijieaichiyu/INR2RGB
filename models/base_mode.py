@@ -10,32 +10,36 @@ class Generator(nn.Module):
     def __init__(self) -> None:
         super(Generator, self).__init__()
         self.conv1 = Conv(1, 8)
-        self.conv2 = nn.Sequential(C2f(8, 16),
+        self.conv2 = nn.Sequential(C2f(8, 16, shortcut=True),
                                    ADown(16, 16)
                                    )
-        self.conv3 = nn.Sequential(C2f(16, 32),
+        self.conv3 = nn.Sequential(C2f(16, 32, shortcut=True),
                                    Conv(32, 64),
+                                   EMA(64),
                                    ADown(64, 64),
-                                   Conv(64, 128))
-        self.conv4 = nn.Sequential(C2f(128, 256),
+                                   Conv(64, 128),
+                                   EMA(128))
+        self.conv4 = nn.Sequential(C2f(128, 256, shortcut=True),
                                    ADown(256, 256),
-                                   Conv(256, 512)
+                                   Conv(256, 512),
+                                   EMA(512)
                                    )
         self.conv5 = nn.Sequential(SPPELAN(512, 512, 256),
                                    Conv(512, 256))
-        self.conv6 = nn.Sequential(C2f(256, 128),
+        self.conv6 = nn.Sequential(C2f(256, 128, shortcut=False),
                                    nn.Upsample(scale_factor=2),
                                    Conv(128, 64))
-        self.conv7 = nn.Sequential(C2f(64, 32),
+        self.conv7 = nn.Sequential(C2f(64, 32, shortcut=False),
                                    nn.Upsample(scale_factor=2))
-        self.conv8 = nn.Sequential(C2f(48, 64),
+        self.conv8 = nn.Sequential(C2f(48, 64, shortcut=False),
                                    nn.Upsample(scale_factor=2),
-                                   Conv(64, 128)
+                                   Conv(64, 128),
+                                   EMA(128)
                                    )
-        self.conv9 = nn.Sequential(C2f(128, 64),
+        self.conv9 = nn.Sequential(C2f(128, 64, shortcut=False),
                                    Conv(64, 32)
                                    )
-        self.conv10 = nn.Sequential(C2f(32, 16),
+        self.conv10 = nn.Sequential(C2f(32, 16, shortcut=False),
                                     Conv(16, 8),
                                     Conv(8, 2, act=False)
                                     )
