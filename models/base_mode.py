@@ -51,7 +51,7 @@ class Generator(nn.Module):
 
         # neck net
 
-        x7 = self.conv7(self.concat(x6, x3))
+        x7 = self.conv7(self.concat([x6, x3]))
         x8 = self.concat([x2, x7])
         x9 = self.conv8(x8)
         x10 = self.conv9(x9)
