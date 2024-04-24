@@ -70,6 +70,8 @@ def train(self):
           '--logdir={}'.format(os.path.join(self.save_path, 'tensorboard')))
     log.add_graph(generator, torch.randn(
         self.batch_size, 1, self.img_size[0], self.img_size[1]))
+    log.add_graph(discriminator, torch.randn(
+        self.batch_size, 2, self.img_size[0], self.img_size[1]))
     print('Drawing dnoe!')
     print('-' * 100)
     print('Generator model info: \n')
@@ -361,7 +363,7 @@ def train(self):
 def parse_args():
     parser = argparse.ArgumentParser()  # 命令行选项、参数和子命令解析器
     parser.add_argument("--data", type=str,
-                        default='../datasets/coco5000', help="path to dataset")
+                        default='../datasets/coco_test', help="path to dataset")
     parser.add_argument("--epochs", type=int, default=1000,
                         help="number of epochs of training")  # 迭代次数
     parser.add_argument("--batch_size", type=int, default=8,
