@@ -51,7 +51,7 @@ class Generator(nn.Module):
 
         # neck net
 
-        x7 = self.conv7(x6)
+        x7 = self.conv7(self.concat(x6, x3))
         x8 = self.concat([x2, x7])
         x9 = self.conv8(x8)
         x10 = self.conv9(x9)
@@ -72,13 +72,13 @@ class Discriminator(nn.Module):
         super(Discriminator, self).__init__()
         self.conv_in = nn.Sequential(Conv(2, 16, 3)
                                      )
-        self.conv1 = nn.Sequential(C2f(16, 32, shortcut=True),
+        self.conv1 = nn.Sequential(C2f(16, 32),
                                    Conv(32, 64, 3, 2),
                                    Conv(64, 128, 3),
-                                   C2f(128, 64, shortcut=True),
+                                   C2f(128, 64),
                                    Conv(64, 32, 3, 2),
                                    Conv(32, 16, 3, 2),
-                                   C2f(16, 8, shortcut=True),
+                                   C2f(16, 8),
                                    Conv(8, 4, 3, 2),
                                    )
         self.conv_out = Conv(4, 1, 3, act=False)  # 记得替换激活函数
