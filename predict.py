@@ -4,14 +4,12 @@ import os
 import cv2
 import numpy as np
 import torch
-from torch.utils import tensorboard
 from torch.utils.data import DataLoader
 from torchvision import transforms
 from tqdm import tqdm
 
 from datasets.data_set import MyDataset
-from models.base_mode import Generator
-from utils.color_trans import PSrgb2lab, PSlab2rgb
+
 from models.base_mode import Generator
 from utils.color_trans import PSrgb2lab, PSlab2rgb
 from utils.model_map import model_structure
@@ -23,7 +21,7 @@ def parse_args():
     parser.add_argument("--data", type=str, default='0',
                         help='path to dataset, and 0 is to open your camara')
     parser.add_argument(
-        "--model", type=str, default='/home/huang/INR2RGB/runs/train/generator/1000.pt', help="path to model")
+        "--model", type=str, default='/home/huang/INR2RGB/runs/train/generator/850.pt', help="path to model")
     parser.add_argument("--batch_size", type=int, default=16,
                         help="size of the batches")  # batch大小
     parser.add_argument("--img_size", type=tuple,
@@ -50,10 +48,7 @@ def predict(self):
         device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     else:
         device = torch.device('cpu')
-    log = tensorboard.SummaryWriter(log_dir=os.path.join(self.save_path, 'tensorboard'),
-                                    filename_suffix=str('val'),
-                                    flush_secs=180)
-    model = Generator()
+
     model = Generator()
     model_structure(model, (1, self.img_size[0], self.img_size[1]))
     checkpoint = torch.load(self.model)
@@ -87,14 +82,11 @@ def predict(self):
         fake_tensor[:, 0, :, :] = gray[:, 0, :, :]  # 主要切片位置
         fake_tensor[:, 1:, :, :] = lamb * fake
         for j in range(self.batch_size):
-            fake_img = np.array(
-                img_pil(PSlab2rgb(fake_tensor)[j]), dtype=np.float32)
+
             fake_img = np.array(
                 img_pil(PSlab2rgb(fake_tensor)[j]), dtype=np.float32)
 
             if i > 10 and i % 10 == 0:  # 图片太多，十轮保存一次
-                img_save_path = os.path.join(
-                    path, 'predictions', str(i) + '.jpg')
                 img_save_path = os.path.join(
                     path, 'predictions', str(i) + '.jpg')
                 cv2.imwrite(img_save_path, fake_img)
@@ -113,10 +105,12 @@ def predict_live(self):
     checkpoint = torch.load(self.model)
     model.load_state_dict(checkpoint['net'])
     model.to(device)
-    cap = cv2.VideoCapture(0)  # 读取图像
-    # fourcc = cv2.VideoWriter_fourcc(*"mp4v")
-    # write = cv2.VideoWriter()
-    # write.open(self.save_path + '/fake.mp4', fourcc=fourcc, fps=60, isColor=True)
+    cap = cv2.VideoCapture(2)  # 读取图像
+    fourcc = cv2.VideoWriter.fourcc(*'mp4v')
+    write = cv2.VideoWriter()
+    write.open(self.save_path + '/fake.mp4', fourcc=fourcc, fps=cap.get(cv2.CAP_PROP_FPS), isColor=True,
+               frameSize=[640, 480])
+
     model.eval()
     torch.no_grad()
     if not os.path.exists(os.path.join(self.save_path, 'predictions')):
@@ -142,29 +136,26 @@ def predict_live(self):
             0].astype(np.float32)
         fake = np.zeros(
             (self.img_size[0], self.img_size[1], 3), dtype=np.float32)
-        fake[:, :, 0] = gray.permute(
-            0, 2, 3, 1).detach().cpu().numpy()[0][:, :, 0]
+        fake[:, :, 0] = gray.permute(0, 2, 3, 1).detach().cpu().numpy()[0][:, :, 0]
         fake[:, :, 1:] = fake_ab * 128
-        fake = cv2.cvtColor(fake, cv2.COLOR_Lab2RGB)
+        fake = cv2.cvtColor(fake, cv2.COLOR_Lab2BGR)
         # fake *= 255.
         fake = cv2.resize(fake, (640, 480))  # 维度还没降下来
-
         cv2.imshow('fake', fake)
 
-        cv2.imshow('real', frame)
+        cv2.imshow('gray', cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY))
 
         # 写入文件
-       # write.write(fake)
-
-        # 写入文件
-       # write.write(fake)
+        fake = np.array(255 * fake, dtype=np.uint8) # float转uint8 fake[0,1]转[0,255]
+        write.write(fake)
 
         key = cv2.waitKey(1)
         if key == 27:
             cv2.destroyAllWindows()
             break
     cap.release()
-    # write.release()
+    write.release()
+
 
 if __name__ == '__main__':
     opt = parse_args()
