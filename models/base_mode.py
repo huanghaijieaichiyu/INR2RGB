@@ -76,41 +76,40 @@ class Discriminator(nn.Module):
         super(Discriminator, self).__init__()
         self.conv_in = nn.Sequential(Conv(2, 16, 3)
                                      )
-        self.conv1 = nn.Sequential(C2f(16, 32),
-                                   Conv(32, 64, 3, 2),
-                                   Conv(64, 128, 3),
-                                   Conv(128, 256, 3, 2),
-                                   Conv(256, 512, 1, 2),
-                                   Conv(512, 1024, 3, 2),
-                                   Conv(1024, 512, 1, 2),
-                                   SPPELAN(512, 512, 256),
-                                   Conv(512, 256, 1, 2),
-                                   Conv(256, 128, 3, 2),
-                                   C2f(128, 64),
-                                   Conv(64, 32, 3, 2),
-                                   nn.Upsample(scale_factor=2),
-                                   Conv(32, 16, 3, 2),
-                                   nn.Upsample(scale_factor=2),
+        self.conv1 = nn.Sequential(C2f(16, 32),  # 256
+                                   Conv(32, 64, 3, 2),  # 128
+                                   Conv(64, 128, 3, 2),  # 64
+                                   Conv(128, 64, 3, 2),  # 32
+                                   Conv(64, 32, 3, 2),  # 16
+                                   Conv(32, 16, 3),
+                                   nn.Upsample(scale_factor=2),  # 32
                                    C2f(16, 8),
-                                   nn.Upsample(scale_factor=2),
-                                   Conv(8, 4, 3, 2),
+                                   Conv(8, 4, 3),
                                    )
         self.conv_out = Conv(4, 1, 3, act=False)  # 记得替换激活函数
-
+        self.flatten = nn.Flatten()
+        self.linear = nn.Sequential(nn.Linear(32 * 32 * 1, 8 * 8),
+                                    nn.LeakyReLU(),
+                                    nn.Linear(8 * 8, 16),
+                                    nn.LeakyReLU(),
+                                    nn.Linear(16, 1)
+                                    )
         self.sigmoid = nn.Sigmoid()
 
     def forward(self, x):
         x1 = self.conv_in(x)
         x2 = self.conv1(x1)
         x3 = self.conv_out(x2)
-        x = self.sigmoid(x3)
+        x4 = self.flatten(x3)
+        x5 = self.linear(x4)
+        x = self.sigmoid(x5)
 
         return x
 
 
 if __name__ == '__main__':
-    # model = Discriminator()
-    model_ = Generator()
-    # d_params, d_macs = model_structure(model, (2, 256, 256))
-    d_params, d_macs = model_structure(model_, (1, 256, 256))
+    model = Discriminator()
+    # model_ = Generator()
+    d_params, d_macs = model_structure(model, (2, 256, 256))
+    #  d_params, d_macs = model_structure(model_, (1, 256, 256))
     print(d_params, d_macs)
