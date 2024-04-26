@@ -7,36 +7,40 @@ from utils.model_map import model_structure
 
 class Generator(nn.Module):
 
-    def __init__(self) -> None:
+    def __init__(self, depth=0.8, weight=1) -> None:
         super(Generator, self).__init__()
-        self.conv1 = Conv(1, 8)
-        self.conv2 = nn.Sequential(Conv(8, 16, 3, 2),
-                                   C2f(16, 32, shortcut=True)
+        depth = depth
+        weight = weight
+        self.conv1 = Conv(1, int(8 * depth))
+        self.conv2 = nn.Sequential(Conv(int(8 * depth), int(16 * depth), int(3 * weight), 2),
+                                   C2f(int(16 * depth), int(32 * depth), int(weight), shortcut=True)
                                    )
-        self.conv3 = nn.Sequential(Conv(32, 64, 3, 2),
-                                   C2f(64, 128, shortcut=True)
+        self.conv3 = nn.Sequential(Conv(int(32 * depth), int(64 * depth), int(3 * weight), 2),
+                                   C2f(int(64 * depth), int(128 * depth), int(weight), shortcut=True)
                                    )
-        self.conv4 = nn.Sequential(Conv(128, 256, 3, 2),
-                                   C2f(256, 512, shortcut=True)
+        self.conv4 = nn.Sequential(Conv(int(128 * depth), int(256 * depth), int(3 * weight), 2),
+                                   C2f(int(256 * depth), int(512 * depth), int(weight), shortcut=True),
+                                   Conv(int(512 * depth), int(1024 * depth), int(3 * weight)),
+                                   Conv(int(1024 * depth), int(512 * depth))
                                    )
-        self.conv5 = nn.Sequential(SPPELAN(512, 512, 256),
-                                   Conv(512, 256, 3))
-        self.conv6 = nn.Sequential(C2f(256, 128, shortcut=False),
+        self.conv5 = nn.Sequential(SPPELAN(int(512 * depth), int(512 * depth), int(256 * depth)),
+                                   Conv(int(512 * depth), int(256 * depth), int(3 * weight)))
+        self.conv6 = nn.Sequential(C2f(int(256 * depth), int(128 * depth), int(weight), shortcut=False),
                                    nn.Upsample(scale_factor=2),
-                                   Conv(128, 64))
-        self.conv7 = nn.Sequential(C2f(192, 96, shortcut=True),
+                                   Conv(int(128 * depth), int(64 * depth)))
+        self.conv7 = nn.Sequential(C2f(int(192 * depth), int(96 * depth), int(weight), shortcut=True),
                                    nn.Upsample(scale_factor=2),
-                                   Conv(96, 32))
-        self.conv8 = nn.Sequential(C2f(64, 64, shortcut=True),
+                                   Conv(int(96 * depth), int(64 * depth)))
+        self.conv8 = nn.Sequential(C2f(int(64 * depth), int(64 * depth), int(weight), shortcut=True),
                                    nn.Upsample(scale_factor=2),
-                                   Conv(64, 128)
+                                   Conv(int(64 * depth), int(128 * depth))
                                    )
-        self.conv9 = nn.Sequential(C2f(128, 64, shortcut=False),
-                                   Conv(64, 32)
+        self.conv9 = nn.Sequential(C2f(int(128 * depth), int(64 * depth), int(weight), shortcut=False),
+                                   Conv(int(64 * depth), int(32 * depth))
                                    )
-        self.conv10 = nn.Sequential(C2f(32, 16, shortcut=False),
-                                    Conv(16, 8),
-                                    Conv(8, 2, act=False)
+        self.conv10 = nn.Sequential(C2f(int(32 * depth), int(16 * depth), int(weight), shortcut=False),
+                                    Conv(int(16 * depth), int(8 * depth)),
+                                    Conv(int(8 * depth), 2, int(3 * weight), act=False)
                                     )
         self.tanh = nn.Tanh()
         self.concat = Concat()
@@ -53,8 +57,7 @@ class Generator(nn.Module):
         # neck net
 
         x7 = self.conv7(self.concat([x6, x3]))
-        x8 = self.concat([x2, x7])
-        x9 = self.conv8(x8)
+        x9 = self.conv8(x7)
         x10 = self.conv9(x9)
         x11 = self.conv10(x10)
         x12 = self.tanh(x11)
@@ -80,6 +83,7 @@ class Discriminator(nn.Module):
                                    Conv(256, 512, 1, 2),
                                    Conv(512, 1024, 3, 2),
                                    Conv(1024, 512, 1, 2),
+                                   SPPELAN(512, 512, 256),
                                    Conv(512, 256, 1, 2),
                                    Conv(256, 128, 3, 2),
                                    C2f(128, 64),
@@ -88,6 +92,7 @@ class Discriminator(nn.Module):
                                    Conv(32, 16, 3, 2),
                                    nn.Upsample(scale_factor=2),
                                    C2f(16, 8),
+                                   nn.Upsample(scale_factor=2),
                                    Conv(8, 4, 3, 2),
                                    )
         self.conv_out = Conv(4, 1, 3, act=False)  # 记得替换激活函数
@@ -104,8 +109,8 @@ class Discriminator(nn.Module):
 
 
 if __name__ == '__main__':
-    model = Discriminator()
-    # model_ = Generator()
-    d_params, d_macs = model_structure(model, (2, 256, 256))
-    # d_params, d_macs = model_structure(model_, (1, 256, 256))
+    # model = Discriminator()
+    model_ = Generator()
+    # d_params, d_macs = model_structure(model, (2, 256, 256))
+    d_params, d_macs = model_structure(model_, (1, 256, 256))
     print(d_params, d_macs)

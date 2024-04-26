@@ -62,7 +62,7 @@ def train(self):
 
     # 选择模型参数
 
-    generator = Generator()
+    generator = Generator(self.depth, self.weight)
     discriminator = Discriminator()
 
     print('-' * 100)
@@ -70,8 +70,6 @@ def train(self):
           '--logdir={}'.format(os.path.join(self.save_path, 'tensorboard')))
     log.add_graph(generator, torch.randn(
         self.batch_size, 1, self.img_size[0], self.img_size[1]))
-    log.add_graph(discriminator, torch.randn(
-        self.batch_size, 2, self.img_size[0], self.img_size[1]))
     print('Drawing dnoe!')
     print('-' * 100)
     print('Generator model info: \n')
@@ -390,6 +388,10 @@ def parse_args():
                         help="learning rate, for adam is 1-e3, SGD is 1-e2")  # 学习率
     parser.add_argument("--momentum", type=float, default=0.9,
                         help="momentum for adam and SGD")
+    parser.add_argument("--depth", type=float, default=0.75,
+                        help="depth of the generator")
+    parser.add_argument("--weight", type=float, default=1,
+                        help="weight of the generator")
     parser.add_argument("--model", type=str, default="train",
                         help="train or test model")
     parser.add_argument("--b1", type=float, default=0.5,
