@@ -6,6 +6,7 @@ import torch
 import torch.nn as nn
 from timm.models.layers import DropPath
 
+
 # 解决pytorch conv2d stride与padding=‘same’ 不能同时使用问题
 
 
@@ -74,7 +75,7 @@ class DilateAttention(nn.Module):
         B, d, H, W = q.shape
 
         q = q.reshape([B, d // self.head_dim, self.head_dim, 1,
-                      H * W]).permute(0, 1, 4, 3, 2)  # B,h,N,1,d
+                       H * W]).permute(0, 1, 4, 3, 2)  # B,h,N,1,d
         k = self.unfold(k).reshape(
             [B, d // self.head_dim, self.head_dim, self.kernel_size * self.kernel_size, H * W]).permute(0, 1, 4, 2,
                                                                                                         3)  # B,h,N,d,k*k
@@ -939,7 +940,7 @@ class SimAM(torch.nn.Module):
         x_minus_mu_square = (x - x.mean(dim=[2, 3], keepdim=True)).pow(2)
         y = x_minus_mu_square / \
             (4 * (x_minus_mu_square.sum(dim=[2, 3],
-             keepdim=True) / n + self.e_lambda)) + 0.5
+                                        keepdim=True) / n + self.e_lambda)) + 0.5
 
         return x * self.activaton(y)
 
@@ -1086,6 +1087,7 @@ class CBAM(nn.Module):
         # c*h*w * 1*h*w
         out = self.spatial_attention(out) * out
         return out
+
 
 #  标准卷积
 

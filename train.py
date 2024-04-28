@@ -140,7 +140,7 @@ def train(self):
             g_optimizer, self.epochs, 1e-6)
 
     if self.lr_deduce == 'llamb':
-        assert not self.coslr, 'do not using tow stagics at the same time!'
+        assert self.lr_deduce != 'coslr', 'do not using tow stagics at the same time!'
 
         def lf(x): return (
                 (1 + math.cos(x * math.pi / self.epochs)) / 2) * (1 - 0.2) + 0.2
@@ -151,7 +151,7 @@ def train(self):
                         last_epoch=-1, verbose=False)
 
     if self.lr_deduce == 'reduceLR':
-        assert not self.llamb or self.coslr, 'do not using tow stagics at the same time!'
+        assert self.lr_deduce != 'coslr', 'do not using tow stagics at the same time!'
         LR_D = torch.optim.lr_scheduler.ReduceLROnPlateau(
             d_optimizer, 'min', factor=0.2, patience=10, verbose=False, threshold=1e-4, threshold_mode='rel',
             cooldown=10, min_lr=1e-6, eps=1e-5)
@@ -251,16 +251,15 @@ def train(self):
                 d_fake_output = loss(fake_outputs, torch.zeros_like(
                     fake_outputs))  # D 希望 fake_loss 为 0
 
-                d_output = d_real_output + d_fake_output
+                d_output = (d_real_output + d_fake_output) / 2.
 
-                d_output.backward()
+                d_output.backward(retain_graph=True)
                 d_optimizer.step()
 
                 d_loss.append(d_output.item())
 
                 '''--------------- 训练生成器 ----------------'''
                 fake = generator(gray)
-
                 fake_inputs = discriminator(fake)
 
                 g_output = loss(fake_inputs, torch.ones_like(
@@ -305,6 +304,8 @@ def train(self):
         elif self.lr_deduce == 'reduceLR':
             LR_D.step(d_output)
             LR_G.step(g_output)
+        else:
+            pass
 
         if g_output == 0 or d_output == 0:
             break
@@ -358,7 +359,7 @@ def train(self):
     log.close()
 
 
-def parse_args():
+if __name__ == '__main__':
     parser = argparse.ArgumentParser()  # 命令行选项、参数和子命令解析器
     parser.add_argument("--data", type=str,
                         default='../datasets/coco5000', help="path to dataset")
@@ -380,7 +381,7 @@ def parse_args():
                         help="Whether to use amp in mixed precision")
     parser.add_argument("--cuDNN", type=bool, default=True,
                         help="Wether use cuDNN to celerate your program")
-    parser.add_argument("--loss", type=str, default='BCEBlurWithLogitsLoss',
+    parser.add_argument("--loss", type=str, default='bce',
                         choices=['BCEBlurWithLogitsLoss', 'mse', 'bce',
                                  'FocalLoss', 'wgb'],
                         help="loss function")
@@ -394,11 +395,11 @@ def parse_args():
                         help="weight of the generator")
     parser.add_argument("--model", type=str, default="train",
                         help="train or test model")
-    parser.add_argument("--b1", type=float, default=0.5,
+    parser.add_argument("--b1", type=float, default=0.7,
                         help="adam: decay of first order momentum of gradient")  # 动量梯度下降第一个参数
     parser.add_argument("--b2", type=float, default=0.999,
                         help="adam: decay of first order momentum of gradient")  # 动量梯度下降第二个参数
-    parser.add_argument("--lr_deduce", type=str, default='coslr',
+    parser.add_argument("--lr_deduce", type=str, default='llamb',
                         choices=['coslr', 'llamb', 'reduceLR', 'no'], help='using a lr tactic')
 
     parser.add_argument("--device", type=str, default='cuda', choices=['cpu', 'cuda'],
@@ -409,11 +410,8 @@ def parse_args():
                                                                       "training(not working in interactive mode)")
     parser.add_argument("--deterministic", type=bool, default=True,
                         help="whether to use deterministic initialization")
+
+    #  此处开始训练
     arges = parser.parse_args()
 
-    return arges
-
-
-if __name__ == '__main__':
-    opt = parse_args()
-    train(opt)
+    train(arges)
