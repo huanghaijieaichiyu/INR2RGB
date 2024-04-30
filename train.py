@@ -225,25 +225,23 @@ def train(self):
             with autocast(enabled=self.amp):
 
                 '''---------------训练判别模型---------------'''
-                fake = generator(gray).detach()
-                fake_inputs = discriminator(fake)
+                fake = generator(gray)
+                fake_inputs = discriminator(fake.detach())
                 d_optimizer.zero_grad()
                 real_outputs = discriminator(color / lamb)
 
                 d_real_output = loss(real_outputs, torch.ones_like(
                     real_outputs))  # D 希望 real_loss 为 1
-
+                d_real_output.backward()
                 d_fake_output = loss(fake_inputs, torch.zeros_like(
                     fake_inputs))  # D 希望 fake_loss 为 0
+                d_fake_output.backward()
 
-                d_output = (d_real_output + d_fake_output) / 2.
-
-                d_output.backward()
+                d_output = (d_real_output.mean().item() + d_fake_output.mean().item()) / 2.
                 d_optimizer.step()
 
                 '''--------------- 训练生成器 ----------------'''
                 g_optimizer.zero_grad()
-                fake = generator(gray)
                 fake_inputs = discriminator(fake)
                 g_output = loss(fake_inputs, torch.ones_like(
                     fake_inputs))  # G 希望 fake 为 1
@@ -251,12 +249,12 @@ def train(self):
                 g_optimizer.step()
 
             # 判断模型是否需要提前终止
-            if per_G_loss == np.mean(g_output.item()) and per_D_loss == np.mean(d_output.item()):
+            if per_G_loss == np.mean(g_output.mean().item()) and per_D_loss == np.mean(d_output):
                 toleration += 1
             if toleration > 99:
                 break
-            per_G_loss = g_output.item()
-            per_D_loss = d_output.item()
+            per_G_loss = g_output.mean().item()
+            per_D_loss = d_output
 
             # 图像拼接还原
             fake_tensor = torch.zeros_like(img, dtype=torch.float32)
@@ -278,8 +276,8 @@ def train(self):
                                  "-----------  Discriminator loss: %.4f-----------"
                                  "-----------PSN: %.4f-------learning ratio: %.4f"
                                  % (
-                                 epoch + 1, self.epochs, target + 1, len(train_loader), np.mean(g_output.item()),
-                                 np.mean(d_output.item()), np.mean(PSN),
+                                 epoch + 1, self.epochs, target + 1, len(train_loader), np.mean(g_output.mean().item()),
+                                 np.mean(d_output), np.mean(PSN),
                                  g_optimizer.state_dict()['param_groups'][0]['lr']))
 
         # 学习率退火
@@ -322,7 +320,7 @@ def train(self):
                                                   epoch=epoch + 1,
                                                   gloss_str=" ".join(
                                                       ["{:4f}".format(np.mean(g_output.mean().item()))]),
-                                                  dloss_str=" ".join(["{:4f}".format(np.mean(d_output.item()))]))
+                                                  dloss_str=" ".join(["{:4f}".format(np.mean(d_output))]))
         with open(train_log, "a") as f:
             f.write(to_write)
 
@@ -333,8 +331,8 @@ def train(self):
                        (epoch + 1))
         # 可视化训练结果
 
-        log.add_scalar('generation loss', np.mean(g_output.item()), epoch + 1)
-        log.add_scalar('discrimination loss', np.mean(d_output.item()), epoch + 1)
+        log.add_scalar('generation loss', np.mean(g_output.mean().item()), epoch + 1)
+        log.add_scalar('discrimination loss', np.mean(d_output), epoch + 1)
         log.add_scalar('PSN', np.mean(PSN), epoch + 1)
         log.add_scalar('learning rate', g_optimizer.state_dict()['param_groups'][0]['lr'], epoch + 1)
 
