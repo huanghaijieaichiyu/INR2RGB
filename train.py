@@ -373,13 +373,13 @@ if __name__ == '__main__':
                         help="learning rate, for adam is 1-e3, SGD is 1-e2")  # 学习率
     parser.add_argument("--momentum", type=float, default=0.5,
                         help="momentum for adam and SGD")
-    parser.add_argument("--depth", type=float, default=0.75,
+    parser.add_argument("--depth", type=float, default=1,
                         help="depth of the generator")
     parser.add_argument("--weight", type=float, default=1,
                         help="weight of the generator")
     parser.add_argument("--model", type=str, default="train",
                         help="train or test model")
-    parser.add_argument("--b1", type=float, default=0.7,
+    parser.add_argument("--b1", type=float, default=0.9,
                         help="adam: decay of first order momentum of gradient")  # 动量梯度下降第一个参数
     parser.add_argument("--b2", type=float, default=0.999,
                         help="adam: decay of first order momentum of gradient")  # 动量梯度下降第二个参数
