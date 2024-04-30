@@ -6,21 +6,26 @@ import torch
 import torch.nn as nn
 from timm.models.layers import DropPath
 
+__init__ = ['calc_same_pad', 'standard_conv', 'Mlp', 'DilateAttention', 'MultiDilatelocalAttention', 'DilateBlock',
+            'Conv', 'C3_DilateBlock', 'AConv', 'ADown', 'RepConvN', 'SP', 'MP', 'ConvTranspose', 'DWConv',
+            'DWConvTranspose2d', 'DFL', 'BottleneckBase', 'RBottleneckBase', 'RepNRBottleneckBase', 'Bottleneck',
+            'RepNBottleneck', 'Res', 'RepNRes', 'BottleneckCSP', 'CSP', 'RepNCSP', 'RepNBottleneckCSP', 'RepNCSP',
+            'C2f', 'C3', 'Disconv', 'Genconv']
+
 
 # 解决pytorch conv2d stride与padding=‘same’ 不能同时使用问题
+def calc_same_pad(i: int, k: int, s: int, d: int) -> int:
+    return max((math.ceil(i / s) - 1) * s + (k - 1) * d + 1 - i, 0)
 
 
-class Conv2dSame(torch.nn.Conv2d):
-
-    def calc_same_pad(self, i: int, k: int, s: int, d: int) -> int:
-        return max((math.ceil(i / s) - 1) * s + (k - 1) * d + 1 - i, 0)
+class standard_conv(torch.nn.Conv2d):
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         ih, iw = x.size()[-2:]
 
-        pad_h = self.calc_same_pad(
+        pad_h = calc_same_pad(
             i=ih, k=self.kernel_size[0], s=self.stride[0], d=self.dilation[0])
-        pad_w = self.calc_same_pad(
+        pad_w = calc_same_pad(
             i=iw, k=self.kernel_size[1], s=self.stride[1], d=self.dilation[1])
 
         if pad_h > 0 or pad_w > 0:
@@ -1089,33 +1094,29 @@ class CBAM(nn.Module):
         return out
 
 
-#  标准卷积
+class Disconv(nn.Module):
+
+    def __init__(self, c1, c2, k=3, s=1, p=None, d=1, g=1, act=True):
+        super(Disconv, self).__init__()
+        self.act = act
+        self.conv = nn.Conv2d(c1, c2, k, s, autopad(
+            k, p, d), groups=g, dilation=d, bias=False)
+        self.bn = nn.BatchNorm2d(c2)
+        self.act = nn.SiLU() if act else nn.Identity()
+
+    def forward(self, x):
+        return self.act(self.bn(self.conv(x)))
 
 
-class Conv2dSame(torch.nn.Conv2d):
+class Gencov(nn.Module):
 
-    def calc_same_pad(self, i: int, k: int, s: int, d: int) -> int:
-        return max((math.ceil(i / s) - 1) * s + (k - 1) * d + 1 - i, 0)
+    def __init__(self, c1, c2, k=3, s=1, p=None, d=1, g=1, act=True):
+        super(Gencov, self).__init__()
+        self.act = act
+        self.conv = nn.Conv2d(c1, c2, k, s, autopad(
+            k, p, d), groups=g, dilation=d, bias=False)
+        self.bn = nn.BatchNorm2d(c2)
+        self.act = nn.SiLU() if act else nn.Identity()
 
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
-        ih, iw = x.size()[-2:]
-
-        pad_h = self.calc_same_pad(
-            i=ih, k=self.kernel_size[0], s=self.stride[0], d=self.dilation[0])
-        pad_w = self.calc_same_pad(
-            i=iw, k=self.kernel_size[1], s=self.stride[1], d=self.dilation[1])
-
-        if pad_h > 0 or pad_w > 0:
-            x = F.pad(
-                x, [pad_w // 2, pad_w - pad_w // 2,
-                    pad_h // 2, pad_h - pad_h // 2]
-            )
-        return F.conv2d(
-            x,
-            self.weight,
-            self.bias,
-            self.stride,
-            self.padding,
-            self.dilation,
-            self.groups,
-        )
+    def forward(self, x):
+        return self.act(self.bn(self.conv(x)))

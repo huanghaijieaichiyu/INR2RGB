@@ -1,6 +1,6 @@
 import torch.nn as nn
 
-from models.common import Conv, C2f, SPPELAN, Concat, EMA
+from models.common import Conv, C2f, SPPELAN, Concat, EMA, Disconv, Gencov
 from utils.model_map import model_structure
 
 
@@ -11,36 +11,35 @@ class Generator(nn.Module):
         depth = depth
         weight = weight
         self.conv1 = Conv(1, int(8 * depth))
-        self.conv2 = nn.Sequential(Conv(int(8 * depth), int(16 * depth), int(3 * weight), 2),
+        self.conv2 = nn.Sequential(Gencov(int(8 * depth), int(16 * depth), int(3 * weight), 2),
                                    C2f(int(16 * depth), int(32 * depth), int(weight), shortcut=True)
                                    )
-        self.conv3 = nn.Sequential(Conv(int(32 * depth), int(64 * depth), int(3 * weight), 2),
+        self.conv3 = nn.Sequential(Gencov(int(32 * depth), int(64 * depth), int(3 * weight), 2),
                                    C2f(int(64 * depth), int(128 * depth), int(weight), shortcut=True)
                                    )
-        self.conv4 = nn.Sequential(Conv(int(128 * depth), int(256 * depth), int(3 * weight), 2),
+        self.conv4 = nn.Sequential(Gencov(int(128 * depth), int(256 * depth), int(3 * weight), 2),
                                    C2f(int(256 * depth), int(512 * depth), int(weight), shortcut=True),
-                                   Conv(int(512 * depth), int(1024 * depth), int(3 * weight)),
-                                   Conv(int(1024 * depth), int(512 * depth)),
-                                   EMA(int(512 * depth)),
+                                   Gencov(int(512 * depth), int(1024 * depth), int(3 * weight)),
+                                   Gencov(int(1024 * depth), int(512 * depth))
                                    )
         self.conv5 = nn.Sequential(SPPELAN(int(512 * depth), int(512 * depth), int(256 * depth)),
-                                   Conv(int(512 * depth), int(256 * depth), int(3 * weight)))
+                                   Gencov(int(512 * depth), int(256 * depth), int(3 * weight)))
         self.conv6 = nn.Sequential(C2f(int(256 * depth), int(128 * depth), int(weight), shortcut=False),
                                    nn.Upsample(scale_factor=2),
-                                   Conv(int(128 * depth), int(64 * depth)))
+                                   Gencov(int(128 * depth), int(64 * depth)))
         self.conv7 = nn.Sequential(C2f(int(192 * depth), int(96 * depth), int(weight), shortcut=True),
                                    nn.Upsample(scale_factor=2),
-                                   Conv(int(96 * depth), int(64 * depth)))
+                                   Gencov(int(96 * depth), int(64 * depth)))
         self.conv8 = nn.Sequential(C2f(int(64 * depth), int(64 * depth), int(weight), shortcut=True),
                                    nn.Upsample(scale_factor=2),
-                                   Conv(int(64 * depth), int(128 * depth))
+                                   Gencov(int(64 * depth), int(128 * depth))
                                    )
         self.conv9 = nn.Sequential(C2f(int(128 * depth), int(64 * depth), int(weight), shortcut=False),
-                                   Conv(int(64 * depth), int(32 * depth))
+                                   Gencov(int(64 * depth), int(32 * depth))
                                    )
         self.conv10 = nn.Sequential(C2f(int(32 * depth), int(16 * depth), int(weight), shortcut=False),
-                                    Conv(int(16 * depth), int(8 * depth)),
-                                    Conv(int(8 * depth), 2, int(3 * weight), act=False)
+                                    Gencov(int(16 * depth), int(8 * depth)),
+                                    Gencov(int(8 * depth), 2, int(3 * weight), act=False)
                                     )
         self.tanh = nn.Tanh()
         self.concat = Concat()
@@ -57,8 +56,8 @@ class Generator(nn.Module):
         # neck net
 
         x7 = self.conv7(self.concat([x6, x3]))
-        x9 = self.conv8(x7)
-        x10 = self.conv9(x9)
+        x8 = self.conv8(x7)
+        x10 = self.conv9(x8)
         x11 = self.conv10(x10)
         x12 = self.tanh(x11)
 
@@ -72,30 +71,38 @@ class Discriminator(nn.Module):
     Discriminator model with no activation function
     """
 
-    def __init__(self):
+    def __init__(self, batch_size=8):
+        """
+        :param batch_size: batch size
+        """
+        self.batch_size = batch_size
         super(Discriminator, self).__init__()
-        self.conv_in = nn.Sequential(Conv(2, 16, 3)
+        self.conv_in = nn.Sequential(Disconv(2, 16, 3)
                                      )
-        self.conv1 = nn.Sequential(C2f(16, 32),  # 256
-                                   Conv(32, 64, 3, 2),  # 128
-                                   Conv(64, 128, 3, 2),  # 64
-                                   Conv(128, 64, 3, 2),  # 32
-                                   Conv(64, 32, 3, 2),  # 16
-                                   Conv(32, 16, 3),
-                                   C2f(16, 8),
-                                   Conv(8, 4, 3),
+        self.conv1 = nn.Sequential(Disconv(16, 32, 3),  # 256
+                                   Disconv(32, 64, 3, 2),  # 128
+                                   Disconv(64, 128, 3, 2),  # 64
+                                   Disconv(128, 64, 3, 2),  # 32
+                                   Disconv(64, 32, 3),
+                                   Disconv(32, 16, 3),
+                                   Disconv(16, 8, 3),
+                                   Disconv(8, 4, 3),
                                    )
-        self.conv_out = Conv(4, 1, 3)
+        self.conv_out = Disconv(4, 1, 3)
         self.flatten = nn.Flatten()
-        self.linear = nn.Sequential(nn.Linear(16 * 16 * 1, 8 * 8),
+        self.linear = nn.Sequential(nn.Linear(32 * 32 * 1, 16 * 16),
                                     nn.LeakyReLU(),
-                                    nn.Linear(8 * 8, 16),
+                                    nn.Linear(16 * 16, 16),
                                     nn.LeakyReLU(),
-                                    nn.Linear(16, 1)
+                                    nn.Linear(16, self.batch_size)
                                     )
         self.act = nn.LeakyReLU()
 
     def forward(self, x):
+        """
+        :param x: input image
+        :return: output
+        """
         x1 = self.conv_in(x)
         x2 = self.conv1(x1)
         x3 = self.conv_out(x2)
@@ -103,7 +110,7 @@ class Discriminator(nn.Module):
         x5 = self.linear(x4)
         x = self.act(x5)
 
-        return x
+        return x.view(self.batch_size if x.shape[0] == self.batch_size else x.shape[0], -1)
 
 
 if __name__ == '__main__':
