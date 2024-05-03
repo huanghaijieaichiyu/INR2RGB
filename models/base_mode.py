@@ -161,15 +161,11 @@ class Discriminator(nn.Module):
                                    Disconv(128, 64, 3),
                                    Disconv(64, 32, 3, 2),  # 32
                                    Disconv(32, 16, 3),
-                                   Disconv(16, 8, 3),
+                                   Disconv(16, 8, 3, 2),  # 16
                                    Disconv(8, 4, 3)
                                    )
-        self.conv_out = Disconv(4, 1, 3)
-        self.flatten = nn.Flatten()
-        self.linear = nn.Sequential(nn.Linear(math.ceil(32 * 32 * depth * depth), 8 * 8),
-                                    nn.LeakyReLU(0.2),
-                                    nn.Linear(8 * 8, self.batch_size),
-                                    )
+        self.conv_out = nn.Conv2d(4, 1, 3, padding='same')
+
         self.act = nn.Sigmoid()
 
     def forward(self, x):
@@ -177,14 +173,9 @@ class Discriminator(nn.Module):
         :param x: input image
         :return: output
         """
-        x1 = self.conv_in(x)
-        x2 = self.conv1(x1)
-        x3 = self.conv_out(x2)
-        x4 = self.flatten(x3)
-        x5 = self.linear(x4)
-        x = self.act(x5)
+        x1 = self.act(self.conv_out(self.conv1(self.conv_in(x))))
 
-        return x.view(self.batch_size if x.shape[0] == self.batch_size else x.shape[0], -1)
+        return x1.view(self.batch_size if x.shape[0] == self.batch_size else x.shape[0], -1)
 
 
 if __name__ == '__main__':

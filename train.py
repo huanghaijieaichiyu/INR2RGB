@@ -178,11 +178,13 @@ def train(self):
 
     # 储存loss 判断模型好坏
     loss_all = [99.]
-
+    gen_loss = []
+    dis_loss = []
     # 寄存器判断模型提前终止条件
     per_G_loss = 99
     per_D_loss = 99
     toleration = 0
+    nan = float('nan')
     # 此处开始训练
     # 使用cuDNN加速训练
     if self.cuDNN:
@@ -192,6 +194,8 @@ def train(self):
     generator.train()
     discriminator.train()
     for epoch in range(self.epochs):
+        img = torch.zeros(self.batch_size, 3, self.img_size[0], self.img_size[1])
+        fake_tensor = torch.zeros(self.batch_size, 3, self.img_size[0], self.img_size[1])
         # 参数储存
         PSN = []
         # 断点训练参数设置
@@ -234,11 +238,12 @@ def train(self):
                 d_real_output = loss(real_outputs, torch.ones_like(
                     real_outputs))  # D 希望 real_loss 为 1
                 d_real_output.backward()
+                d_x = real_outputs.mean().item()
                 d_fake_output = loss(fake_inputs, torch.zeros_like(
                     fake_inputs))  # D 希望 fake_loss 为 0
                 d_fake_output.backward()
-
-                d_output = (d_real_output.mean().item() + d_fake_output.mean().item()) / 2.
+                d_g_z1 = fake_inputs.mean().item()
+                d_output = (d_real_output.item() + d_fake_output.item()) / 2.
                 d_optimizer.step()
 
                 '''--------------- 训练生成器 ----------------'''
@@ -247,6 +252,7 @@ def train(self):
                 g_output = loss(fake_inputs, torch.ones_like(
                     fake_inputs))  # G 希望 fake 为 1
                 g_output.backward()
+                d_g_z2 = fake_inputs.mean().item()
                 g_optimizer.step()
 
             # 判断模型是否需要提前终止
@@ -255,10 +261,17 @@ def train(self):
             if toleration > self.batch_size * 0.1:
                 break
 
-            per_G_loss = g_output.mean().item()
+            per_G_loss = g_output.item()
             per_D_loss = d_output
+            gen_loss.append(g_output.item())
+            dis_loss.append(d_output)
 
             if g_output.mean().item() == 0. or d_output == 0.:
+                break
+            # 梯度消失提前终止
+            if math.isnan(g_output.mean().item()) or math.isnan(d_output):
+                pbar.close()
+                print('NaN detected!')
                 break
             # 图像拼接还原
             fake_tensor = torch.zeros_like(img, dtype=torch.float32)
@@ -276,14 +289,12 @@ def train(self):
 
             PSN.append(psn)
 
-            pbar.set_description("Epoch [%d/%d] ----------- Batch [%d/%d] -----------  Generator loss: %.4f "
-                                 "-----------  Discriminator loss: %.4f-----------"
-                                 "-----------PSN: %.4f-------learning ratio: %.4f"
-                                 % (
-                                     epoch + 1, self.epochs, target + 1, len(train_loader),
-                                     np.mean(g_output.mean().item()),
-                                     np.mean(d_output), np.mean(PSN),
-                                     g_optimizer.state_dict()['param_groups'][0]['lr']))
+            pbar.set_description('Epoch: [%d/%d]\t Batch: [%d/%d]\t Loss_D: %.4f\t Loss_G: %.4f\t D(x): %.4f\t D(G('
+                                 'z)): %.4f / %.4f'
+                                 "\t PSN: %.4f\t learning ratio: %.4f"
+                                 % (epoch + 1, self.epochs, target + 1, len(train_loader),
+                                    d_output, g_output.item(), d_x, d_g_z1, d_g_z2, np.mean(PSN),
+                                    g_optimizer.state_dict()['param_groups'][0]['lr']))
 
         # 学习率退火
         if self.lr_deduce == 'llamb' or 'coslr':
@@ -309,9 +320,9 @@ def train(self):
         }
         # 保持最佳模型
 
-        if np.mean(g_output.mean().item()) < min(loss_all):
+        if np.mean(g_output.item()) < min(loss_all):
             torch.save(g_checkpoint, path + '/generator/best.pt')
-        loss_all.append(np.mean(g_output.mean().item()))
+        loss_all.append(np.mean(g_output.item()))
 
         # 保持训练权重
         torch.save(g_checkpoint, path + '/generator/last.pt')
@@ -333,8 +344,8 @@ def train(self):
                        (epoch + 1))
         # 可视化训练结果
 
-        log.add_scalar('generation loss', np.mean(g_output.mean().item()), epoch + 1)
-        log.add_scalar('discrimination loss', np.mean(d_output), epoch + 1)
+        log.add_scalar('generation loss', gen_loss, epoch + 1)
+        log.add_scalar('discrimination loss', dis_loss, epoch + 1)
         log.add_scalar('PSN', np.mean(PSN), epoch + 1)
         log.add_scalar('learning rate', g_optimizer.state_dict()['param_groups'][0]['lr'], epoch + 1)
 
@@ -348,7 +359,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()  # 命令行选项、参数和子命令解析器
     parser.add_argument("--data", type=str,
                         default='../datasets/coco5000', help="path to dataset")
-    parser.add_argument("--epochs", type=int, default=100,
+    parser.add_argument("--epochs", type=int, default=500,
                         help="number of epochs of training")  # 迭代次数
     parser.add_argument("--batch_size", type=int, default=8,
                         help="size of the batches")  # batch大小
