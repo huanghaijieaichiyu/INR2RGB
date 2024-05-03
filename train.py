@@ -66,13 +66,14 @@ def train(self):
     generator = Generator(self.depth, self.weight)
     discriminator = Discriminator(depth=self.img_size[0] / 256., batch_size=self.batch_size)
 
-    print('-' * 50)
-    print('Drawing model graph to tensorboard, you can check it with:http://127.0.0.1:6006 after running tensorboard '
-          '--logdir={}'.format(os.path.join(self.save_path, 'tensorboard')))
-    log.add_graph(generator, torch.randn(
-        self.batch_size, 1, self.img_size[0], self.img_size[1]))
-    print('Drawing doe!')
-    print('-' * 50)
+    if self.draw_model:
+        print('-' * 50)
+        print('Drawing model graph to tensorboard, you can check it with:http://127.0.0.1:6006 in tensorboard '
+              '--logdir={}'.format(os.path.join(self.save_path, 'tensorboard')))
+        log.add_graph(generator, torch.randn(
+            self.batch_size, 1, self.img_size[0], self.img_size[1]))
+        print('Drawing doe!')
+        print('-' * 50)
     print('Generator model info: \n')
     g_params, g_macs = model_structure(
         generator, img_size=(1, self.img_size[0], self.img_size[1]))
@@ -229,72 +230,71 @@ def train(self):
             with autocast(enabled=self.amp):
                 d_optimizer.zero_grad()
                 g_optimizer.zero_grad()
-                '''---------------训练判别模型---------------'''
 
+                '''---------------训练判别模型---------------'''
                 fake = generator(gray)
                 fake_inputs = discriminator(fake.detach())
                 real_outputs = discriminator(color / lamb)
-
-                d_real_output = loss(real_outputs, torch.ones_like(
-                    real_outputs))  # D 希望 real_loss 为 1
+                # D 希望 real_loss 为 1
+                d_real_output = loss(real_outputs, torch.ones_like(real_outputs, dtype=torch.float32))
                 d_real_output.backward()
                 d_x = real_outputs.mean().item()
-                d_fake_output = loss(fake_inputs, torch.zeros_like(
-                    fake_inputs))  # D 希望 fake_loss 为 0
+                # D希望 fake_loss 为 0
+                d_fake_output = loss(fake_inputs, torch.zeros_like(fake_inputs, dtype=torch.float32))
                 d_fake_output.backward()
                 d_g_z1 = fake_inputs.mean().item()
                 d_output = (d_real_output.item() + d_fake_output.item()) / 2.
                 d_optimizer.step()
 
                 '''--------------- 训练生成器 ----------------'''
-
                 fake_inputs = discriminator(fake)
-                g_output = loss(fake_inputs, torch.ones_like(
-                    fake_inputs))  # G 希望 fake 为 1
+                # G 希望 fake 为 1
+                g_output = loss(fake_inputs, torch.ones_like(fake_inputs, dtype=torch.float32))
                 g_output.backward()
                 d_g_z2 = fake_inputs.mean().item()
                 g_optimizer.step()
 
-            # 判断模型是否需要提前终止
-            if per_G_loss == np.mean(g_output.mean().item()) or per_D_loss == np.mean(d_output):
-                toleration += 1
-            if toleration > self.batch_size * 0.1:
-                break
+            with torch.no_grad():
+                # 判断模型是否需要提前终止
+                if per_G_loss == np.mean(g_output.mean().item()) or per_D_loss == np.mean(d_output):
+                    toleration += 1
+                if toleration > self.batch_size * 0.1:
+                    break
 
-            per_G_loss = g_output.item()
-            per_D_loss = d_output
-            gen_loss.append(g_output.item())
-            dis_loss.append(d_output)
+                per_G_loss = g_output.item()
+                per_D_loss = d_output
+                gen_loss.append(g_output.item())
+                dis_loss.append(d_output)
 
-            if g_output.mean().item() == 0. or d_output == 0.:
-                break
-            # 梯度消失提前终止
-            if math.isnan(g_output.mean().item()) or math.isnan(d_output):
-                pbar.close()
-                print('NaN detected!')
-                break
-            # 图像拼接还原
-            fake_tensor = torch.zeros_like(img, dtype=torch.float32)
-            fake_tensor[:, 0, :, :] = gray[:, 0, :, :]  # 主要切片位置
-            fake_tensor[:, 1:, :, :] = lamb * fake
+                if g_output.mean().item() == 0. or d_output == 0.:
+                    break
+                # 梯度消失提前终止
+                if math.isnan(g_output.mean().item()) or math.isnan(d_output):
+                    pbar.close()
+                    print('NaN detected!')
+                    break
+                # 图像拼接还原
+                fake_tensor = torch.zeros_like(img, dtype=torch.float32)
+                fake_tensor[:, 0, :, :] = gray[:, 0, :, :]  # 主要切片位置
+                fake_tensor[:, 1:, :, :] = lamb * fake
 
-            fake_img = np.array(
-                img_pil(PSlab2rgb(fake_tensor)[0]), dtype=np.float32)
-            # print(fake_img)
-            # 加入新的评价指标：PSN,SSIM
+                fake_img = np.array(
+                    img_pil(PSlab2rgb(fake_tensor)[0]), dtype=np.float32)
+                # print(fake_img)
+                # 加入新的评价指标：PSN,SSIM
 
-            real_pil = img_pil(img[0])
-            psn = peak_signal_noise_ratio(
-                np.array(real_pil, dtype=np.float32) / 255., fake_img / 255., data_range=1)
+                real_pil = img_pil(img[0])
+                psn = peak_signal_noise_ratio(
+                    np.array(real_pil, dtype=np.float32) / 255., fake_img / 255., data_range=1)
 
-            PSN.append(psn)
+                PSN.append(psn)
 
-            pbar.set_description('Epoch: [%d/%d]\t Batch: [%d/%d]\t Loss_D: %.4f\t Loss_G: %.4f\t D(x): %.4f\t D(G('
-                                 'z)): %.4f / %.4f'
-                                 "\t PSN: %.4f\t learning ratio: %.4f"
-                                 % (epoch + 1, self.epochs, target + 1, len(train_loader),
-                                    d_output, g_output.item(), d_x, d_g_z1, d_g_z2, np.mean(PSN),
-                                    g_optimizer.state_dict()['param_groups'][0]['lr']))
+                pbar.set_description('Epoch: [%d/%d]\t Batch: [%d/%d]\t Loss_D: %.4f\t Loss_G: %.4f\t D(x): %.4f\t D(G('
+                                     'z)): %.4f / %.4f'
+                                     "\t PSN: %.4f\t learning ratio: %.4f"
+                                     % (epoch + 1, self.epochs, target + 1, len(train_loader),
+                                        d_output, g_output.item(), d_x, d_g_z1, d_g_z2, np.mean(PSN),
+                                        g_optimizer.state_dict()['param_groups'][0]['lr']))
 
         # 学习率退火
         if self.lr_deduce == 'llamb' or 'coslr':
@@ -331,9 +331,12 @@ def train(self):
         # 写入日志文件
         to_write = train_log_txt_formatter.format(time_str=time.strftime("%Y_%m_%d_%H:%M:%S"),
                                                   epoch=epoch + 1,
-                                                  gloss_str=" ".join(
-                                                      ["{:4f}".format(np.mean(g_output.mean().item()))]),
-                                                  dloss_str=" ".join(["{:4f}".format(np.mean(d_output))]))
+                                                  gloss_str=" ".join(["{:4f}".format(np.mean(gen_loss))]),
+                                                  dloss_str=" ".join(["{:4f}".format(np.mean(dis_loss))]),
+                                                  D_x_str=" ".join(["{:4f}".format(d_x)]),
+                                                  D_g_z1_str=" ".join(["{:4f}".format(d_g_z1)]),
+                                                  D_g_z2_str=" ".join(["{:4f}".format(d_g_z2)]),
+                                                  PSN_str=" ".join(["{:4f}".format(np.mean(PSN))]))
         with open(train_log, "a") as f:
             f.write(to_write)
 
@@ -344,8 +347,8 @@ def train(self):
                        (epoch + 1))
         # 可视化训练结果
 
-        log.add_scalar('generation loss', gen_loss, epoch + 1)
-        log.add_scalar('discrimination loss', dis_loss, epoch + 1)
+        log.add_scalar('generation loss', np.mean(gen_loss), epoch + 1)
+        log.add_scalar('discrimination loss', np.mean(dis_loss), epoch + 1)
         log.add_scalar('PSN', np.mean(PSN), epoch + 1)
         log.add_scalar('learning rate', g_optimizer.state_dict()['param_groups'][0]['lr'], epoch + 1)
 
@@ -407,6 +410,8 @@ if __name__ == '__main__':
                                                                       "training(not working in interactive mode)")
     parser.add_argument("--deterministic", type=bool, default=True,
                         help="whether to use deterministic initialization")
+    parser.add_argument("--draw_model", type=bool, default=False,
+                        help="whether to draw model graph to tensorboard")
 
     #  此处开始训练
     arges = parser.parse_args()
