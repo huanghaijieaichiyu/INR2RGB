@@ -6,6 +6,7 @@ import time
 
 import numpy as np
 import torch
+from rich import print
 from skimage.metrics import peak_signal_noise_ratio
 from timm.optim import Lion, RMSpropTF
 from torch import nn
@@ -16,10 +17,9 @@ from torch.utils import tensorboard
 from torch.utils.data import DataLoader
 from torchvision import transforms
 from tqdm import tqdm
-from rich import print
 
 from datasets.data_set import MyDataset
-from models.base_mode import Generator, Discriminator, Convert
+from models.base_mode import Convert
 from utils.color_trans import PSlab2rgb, PSrgb2lab
 from utils.loss import BCEBlurWithLogitsLoss, FocalLoss
 from utils.model_map import model_structure
@@ -191,9 +191,8 @@ def train(self):
 
             with autocast(enabled=self.amp):
                 optimizer.zero_grad()
-                '''--------------- 训练生成器 ----------------'''
                 fake = model(gray)
-                output = 10 * loss(fake, color/lamb)  # G 希望 fake 为 1
+                output = loss(fake, color/lamb)
                 output.backward()
                 optimizer.step()
 
@@ -282,13 +281,13 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()  # 命令行选项、参数和子命令解析器
     parser.add_argument("--data", type=str,
                         default='../datasets/coco5000', help="path to dataset")
-    parser.add_argument("--epochs", type=int, default=1000,
+    parser.add_argument("--epochs", type=int, default=100,
                         help="number of epochs of training")  # 迭代次数
     parser.add_argument("--batch_size", type=int, default=8,
                         help="size of the batches")  # batch大小
     parser.add_argument("--img_size", type=tuple,
-                        default=(256, 256), help="size of the image")
-    parser.add_argument("--optimizer", type=str, default='Adam',
+                        default=(400, 400), help="size of the image")
+    parser.add_argument("--optimizer", type=str, default='AdamW',
                         choices=['AdamW', 'SGD', 'Adam', 'lion', 'rmp'])
     parser.add_argument("--num_workers", type=int, default=20,
                         help="number of data loading workers, if in windows, must be 0"
@@ -305,9 +304,9 @@ if __name__ == '__main__':
                         choices=['BCEBlurWithLogitsLoss', 'mse', 'bce',
                                  'FocalLoss', 'wgb'],
                         help="loss function")
-    parser.add_argument("--lr", type=float, default=4.5e-3,
+    parser.add_argument("--lr", type=float, default=4.5e-4,
                         help="learning rate, for adam is 1-e3, SGD is 1-e2")  # 学习率
-    parser.add_argument("--momentum", type=float, default=0.9,
+    parser.add_argument("--momentum", type=float, default=0.5,
                         help="momentum for adam and SGD")
     parser.add_argument("--depth", type=float, default=1,
                         help="depth of the generator")

@@ -20,31 +20,37 @@ class Convert(nn.Module):
                                    C2f(math.ceil(64 * depth), math.ceil(128 * depth), math.ceil(weight), shortcut=True)
                                    )
         self.conv4 = nn.Sequential(Conv(math.ceil(128 * depth), math.ceil(256 * depth), math.ceil(3 * weight), 2),  # 32
-                                   C2f(math.ceil(256 * depth), math.ceil(512 * depth), math.ceil(weight), shortcut=True))
-        self.conv5 = nn.Sequential(Conv(math.ceil(512 * depth), math.ceil(1024 * depth), math.ceil(3 * weight), 2),  # 16
+                                   C2f(math.ceil(256 * depth), math.ceil(512 * depth), math.ceil(weight),
+                                       shortcut=True))
+        self.conv5 = nn.Sequential(Conv(math.ceil(512 * depth), math.ceil(1024 * depth), math.ceil(3 * weight), 2),
+                                   # 16
                                    Conv(math.ceil(1024 * depth), math.ceil(512 * depth), math.ceil(3 * weight))
                                    )
         self.conv6 = nn.Sequential(SPPELAN(math.ceil(512 * depth), math.ceil(512 * depth), math.ceil(256 * depth)),
                                    Conv(math.ceil(512 * depth), math.ceil(256 * depth), math.ceil(3 * weight)))
-        self.conv7 = nn.Sequential(C2f(math.ceil(256 * depth), math.ceil(128 * depth), math.ceil(weight), shortcut=False),
-                                   nn.Upsample(scale_factor=2),  # 32
-                                   Conv(math.ceil(128 * depth), math.ceil(64 * depth)))
-        self.conv8 = nn.Sequential(C2f(math.ceil(576 * depth), math.ceil(256 * depth), math.ceil(weight), shortcut=True),
-                                   nn.Upsample(scale_factor=2),  # 64
-                                   Conv(math.ceil(256 * depth), math.ceil(128 * depth), math.ceil(3 * weight)),
-                                   C2f(math.ceil(128 * depth), math.ceil(64 * depth), math.ceil(weight), shortcut=False))
+        self.conv7 = nn.Sequential(
+            C2f(math.ceil(256 * depth), math.ceil(128 * depth), math.ceil(weight), shortcut=False),
+            nn.Upsample(scale_factor=2),  # 32
+            Conv(math.ceil(128 * depth), math.ceil(64 * depth)))
+        self.conv8 = nn.Sequential(
+            C2f(math.ceil(576 * depth), math.ceil(256 * depth), math.ceil(weight), shortcut=True),
+            nn.Upsample(scale_factor=2),  # 64
+            Conv(math.ceil(256 * depth), math.ceil(128 * depth), math.ceil(3 * weight)),
+            C2f(math.ceil(128 * depth), math.ceil(64 * depth), math.ceil(weight), shortcut=False))
         self.conv9 = nn.Sequential(C2f(math.ceil(64 * depth), math.ceil(64 * depth), math.ceil(weight), shortcut=True),
                                    nn.Upsample(scale_factor=2),  # 128
                                    Conv(math.ceil(64 * depth), math.ceil(128 * depth))
                                    )
-        self.conv10 = nn.Sequential(C2f(math.ceil(128 * depth), math.ceil(64 * depth), math.ceil(weight), shortcut=False),
-                                    nn.Upsample(scale_factor=2),  # 256
-                                    Conv(math.ceil(64 * depth), math.ceil(32 * depth))
-                                    )
-        self.conv11 = nn.Sequential(C2f(math.ceil(32 * depth), math.ceil(16 * depth), math.ceil(weight), shortcut=False),
-                                    Conv(math.ceil(16 * depth), math.ceil(8 * depth)),
-                                    Conv(math.ceil(8 * depth), 2, math.ceil(3 * weight), act=False)
-                                    )
+        self.conv10 = nn.Sequential(
+            C2f(math.ceil(128 * depth), math.ceil(64 * depth), math.ceil(weight), shortcut=False),
+            nn.Upsample(scale_factor=2),  # 256
+            Conv(math.ceil(64 * depth), math.ceil(32 * depth))
+        )
+        self.conv11 = nn.Sequential(
+            C2f(math.ceil(32 * depth), math.ceil(16 * depth), math.ceil(weight), shortcut=False),
+            Conv(math.ceil(16 * depth), math.ceil(8 * depth)),
+            Conv(math.ceil(8 * depth), 2, math.ceil(3 * weight), act=False)
+        )
         self.tanh = nn.Tanh()
         self.concat = Concat()
 
@@ -84,15 +90,17 @@ class Generator(nn.Module):
                                    C2f(math.ceil(64 * depth), math.ceil(128 * depth), math.ceil(weight), shortcut=True)
                                    )
         self.conv4 = nn.Sequential(Gencov(math.ceil(128 * depth), math.ceil(256 * depth), math.ceil(3 * weight), 2),
-                                   C2f(math.ceil(256 * depth), math.ceil(512 * depth), math.ceil(weight), shortcut=True),
+                                   C2f(math.ceil(256 * depth), math.ceil(512 * depth), math.ceil(weight),
+                                       shortcut=True),
                                    Gencov(math.ceil(512 * depth), math.ceil(1024 * depth), math.ceil(3 * weight)),
                                    Gencov(math.ceil(1024 * depth), math.ceil(512 * depth))
                                    )
         self.conv5 = nn.Sequential(SPPELAN(math.ceil(512 * depth), math.ceil(512 * depth), math.ceil(256 * depth)),
                                    Gencov(math.ceil(512 * depth), math.ceil(256 * depth), math.ceil(3 * weight)))
-        self.conv6 = nn.Sequential(C2f(math.ceil(256 * depth), math.ceil(128 * depth), math.ceil(weight), shortcut=False),
-                                   nn.Upsample(scale_factor=2),
-                                   Gencov(math.ceil(128 * depth), math.ceil(64 * depth)))
+        self.conv6 = nn.Sequential(
+            C2f(math.ceil(256 * depth), math.ceil(128 * depth), math.ceil(weight), shortcut=False),
+            nn.Upsample(scale_factor=2),
+            Gencov(math.ceil(128 * depth), math.ceil(64 * depth)))
         self.conv7 = nn.Sequential(C2f(math.ceil(192 * depth), math.ceil(96 * depth), math.ceil(weight), shortcut=True),
                                    nn.Upsample(scale_factor=2),
                                    Gencov(math.ceil(96 * depth), math.ceil(64 * depth)))
@@ -100,13 +108,15 @@ class Generator(nn.Module):
                                    nn.Upsample(scale_factor=2),
                                    Gencov(math.ceil(64 * depth), math.ceil(128 * depth))
                                    )
-        self.conv9 = nn.Sequential(C2f(math.ceil(128 * depth), math.ceil(64 * depth), math.ceil(weight), shortcut=False),
-                                   Gencov(math.ceil(64 * depth), math.ceil(32 * depth))
-                                   )
-        self.conv10 = nn.Sequential(C2f(math.ceil(32 * depth), math.ceil(16 * depth), math.ceil(weight), shortcut=False),
-                                    Gencov(math.ceil(16 * depth), math.ceil(8 * depth)),
-                                    Gencov(math.ceil(8 * depth), 2, math.ceil(3 * weight), act=False)
-                                    )
+        self.conv9 = nn.Sequential(
+            C2f(math.ceil(128 * depth), math.ceil(64 * depth), math.ceil(weight), shortcut=False),
+            Gencov(math.ceil(64 * depth), math.ceil(32 * depth))
+        )
+        self.conv10 = nn.Sequential(
+            C2f(math.ceil(32 * depth), math.ceil(16 * depth), math.ceil(weight), shortcut=False),
+            Gencov(math.ceil(16 * depth), math.ceil(8 * depth)),
+            Gencov(math.ceil(8 * depth), 2, math.ceil(3 * weight), act=False)
+        )
         self.tanh = nn.Tanh()
         self.concat = Concat()
 
@@ -145,25 +155,20 @@ class Discriminator(nn.Module):
         super(Discriminator, self).__init__()
         self.conv_in = nn.Sequential(Disconv(2, 16, 3)
                                      )
-        self.conv1 = nn.Sequential(Disconv(16, 32, 3),  # 256
-                                   Disconv(32, 64, 3, 2),  # 128
+        self.conv1 = nn.Sequential(Disconv(16, 32, 3, 2),  # 128
+                                   Disconv(32, 64, 3),
                                    Disconv(64, 128, 3, 2),  # 64
-                                   Disconv(128, 64, 3, 2),  # 32
-                                   Disconv(64, 32, 3),
+                                   Disconv(128, 64, 3),
+                                   Disconv(64, 32, 3, 2),  # 32
                                    Disconv(32, 16, 3),
                                    Disconv(16, 8, 3),
-                                   Disconv(8, 4, 3),
+                                   Disconv(8, 4, 3)
                                    )
         self.conv_out = Disconv(4, 1, 3)
         self.flatten = nn.Flatten()
-        self.linear = nn.Sequential(nn.Linear(math.ceil(32 * 32 * depth * depth), 16 * 16),
-                                    nn.BatchNorm1d(16 * 16),
-                                    nn.LeakyReLU(0.2, inplace=True),
-                                    nn.Linear(16 * 16, 16),
-                                    nn.BatchNorm1d(16),
-                                    nn.LeakyReLU(0.2, inplace=True),
-                                    nn.Linear(16, self.batch_size),
-                                    nn.BatchNorm1d(self.batch_size),
+        self.linear = nn.Sequential(nn.Linear(math.ceil(32 * 32 * depth * depth), 8 * 8),
+                                    nn.LeakyReLU(0.2),
+                                    nn.Linear(8 * 8, self.batch_size),
                                     )
         self.act = nn.Sigmoid()
 
@@ -183,8 +188,8 @@ class Discriminator(nn.Module):
 
 
 if __name__ == '__main__':
-    # model = Discriminator()
-    model_ = Convert()
-    # d_params, d_macs = model_structure(model, (2, 256, 256))
-    d_params, d_macs = model_structure(model_, (1, 256, 256))
+    model = Discriminator()
+    # model_ = Convert()
+    d_params, d_macs = model_structure(model, (2, 256, 256))
+    # d_params, d_macs = model_structure(model_, (1, 256, 256))
     print(d_params, d_macs)

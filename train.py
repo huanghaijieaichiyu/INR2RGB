@@ -71,7 +71,7 @@ def train(self):
           '--logdir={}'.format(os.path.join(self.save_path, 'tensorboard')))
     log.add_graph(generator, torch.randn(
         self.batch_size, 1, self.img_size[0], self.img_size[1]))
-    print('Drawing dnoe!')
+    print('Drawing doe!')
     print('-' * 50)
     print('Generator model info: \n')
     g_params, g_macs = model_structure(
@@ -250,9 +250,9 @@ def train(self):
                 g_optimizer.step()
 
             # 判断模型是否需要提前终止
-            if per_G_loss == np.mean(g_output.mean().item()) and per_D_loss == np.mean(d_output):
+            if per_G_loss == np.mean(g_output.mean().item()) or per_D_loss == np.mean(d_output):
                 toleration += 1
-            if toleration > 99:
+            if toleration > self.batch_size * 0.1:
                 break
 
             per_G_loss = g_output.mean().item()
@@ -348,7 +348,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()  # 命令行选项、参数和子命令解析器
     parser.add_argument("--data", type=str,
                         default='../datasets/coco5000', help="path to dataset")
-    parser.add_argument("--epochs", type=int, default=1000,
+    parser.add_argument("--epochs", type=int, default=100,
                         help="number of epochs of training")  # 迭代次数
     parser.add_argument("--batch_size", type=int, default=8,
                         help="size of the batches")  # batch大小
@@ -356,7 +356,7 @@ if __name__ == '__main__':
                         default=(360, 360), help="size of the image")
     parser.add_argument("--optimizer", type=str, default='Adam',
                         choices=['AdamW', 'SGD', 'Adam', 'lion', 'rmp'])
-    parser.add_argument("--num_workers", type=int, default=20,
+    parser.add_argument("--num_workers", type=int, default=10,
                         help="number of data loading workers, if in windows, must be 0"
                         )
     parser.add_argument("--seed", type=int, default=1999, help="random seed")
@@ -367,13 +367,13 @@ if __name__ == '__main__':
                         help="Whether to use amp in mixed precision")
     parser.add_argument("--cuDNN", type=bool, default=True,
                         help="Wether use cuDNN to celerate your program")
-    parser.add_argument("--loss", type=str, default='BCEBlurWithLogitsLoss',
+    parser.add_argument("--loss", type=str, default='bce',
                         choices=['BCEBlurWithLogitsLoss', 'mse', 'bce',
                                  'FocalLoss', 'wgb'],
                         help="loss function")
     parser.add_argument("--lr", type=float, default=4.5e-4,
                         help="learning rate, for adam is 1-e3, SGD is 1-e2")  # 学习率
-    parser.add_argument("--momentum", type=float, default=0.9,
+    parser.add_argument("--momentum", type=float, default=0.5,
                         help="momentum for adam and SGD")
     parser.add_argument("--depth", type=float, default=0.75,
                         help="depth of the generator")

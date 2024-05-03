@@ -10,7 +10,7 @@ from tqdm import tqdm
 
 from datasets.data_set import MyDataset
 
-from models.base_mode import Generator
+from models.base_mode import Generator, Convert
 from utils.color_trans import PSrgb2lab, PSlab2rgb
 from utils.model_map import model_structure
 from utils.save_path import save_path
@@ -21,7 +21,7 @@ def parse_args():
     parser.add_argument("--data", type=str, default='0',
                         help='path to dataset, and 0 is to open your camara')
     parser.add_argument(
-        "--model", type=str, default='/home/huang/INR2RGB/runs/train/generator/850.pt', help="path to model")
+        "--model", type=str, default='/home/huang/INR2RGB/runs/train(5)/50.pt', help="path to model")
     parser.add_argument("--batch_size", type=int, default=16,
                         help="size of the batches")  # batch大小
     parser.add_argument("--img_size", type=tuple,
@@ -100,7 +100,7 @@ def predict_live(self):
         device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     else:
         device = torch.device('cpu')
-    model = Generator()
+    model = Convert()
     model_structure(model, (1, self.img_size[0], self.img_size[1]))
     checkpoint = torch.load(self.model)
     model.load_state_dict(checkpoint['net'])

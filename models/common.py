@@ -6,26 +6,24 @@ import torch
 import torch.nn as nn
 from timm.models.layers import DropPath
 
-__init__ = ['calc_same_pad', 'standard_conv', 'Mlp', 'DilateAttention', 'MultiDilatelocalAttention', 'DilateBlock',
+__init__ = ['calc_same_pad', 'Conv2dSame', 'Mlp', 'DilateAttention', 'MultiDilatelocalAttention', 'DilateBlock',
             'Conv', 'C3_DilateBlock', 'AConv', 'ADown', 'RepConvN', 'SP', 'MP', 'ConvTranspose', 'DWConv',
             'DWConvTranspose2d', 'DFL', 'BottleneckBase', 'RBottleneckBase', 'RepNRBottleneckBase', 'Bottleneck',
             'RepNBottleneck', 'Res', 'RepNRes', 'BottleneckCSP', 'CSP', 'RepNCSP', 'RepNBottleneckCSP', 'RepNCSP',
             'C2f', 'C3', 'Disconv', 'Genconv']
 
 
-# 解决pytorch conv2d stride与padding=‘same’ 不能同时使用问题
-def calc_same_pad(i: int, k: int, s: int, d: int) -> int:
-    return max((math.ceil(i / s) - 1) * s + (k - 1) * d + 1 - i, 0)
-
-
-class standard_conv(torch.nn.Conv2d):
+class Conv2dSame(torch.nn.Conv2d):
+    # 解决pytorch conv2d stride与padding=‘same’ 不能同时使用问题
+    def calc_same_pad(self, i: int, k: int, s: int, d: int) -> int:
+        return max((math.ceil(i / s) - 1) * s + (k - 1) * d + 1 - i, 0)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         ih, iw = x.size()[-2:]
 
-        pad_h = calc_same_pad(
+        pad_h = self.calc_same_pad(
             i=ih, k=self.kernel_size[0], s=self.stride[0], d=self.dilation[0])
-        pad_w = calc_same_pad(
+        pad_w = self.calc_same_pad(
             i=iw, k=self.kernel_size[1], s=self.stride[1], d=self.dilation[1])
 
         if pad_h > 0 or pad_w > 0:
