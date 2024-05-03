@@ -102,7 +102,7 @@ class Generator(nn.Module):
         self.conv7 = nn.Sequential(C2f(math.ceil(192 * depth), math.ceil(96 * depth), math.ceil(weight), shortcut=True),
                                    nn.Upsample(scale_factor=2),
                                    Gencov(math.ceil(96 * depth), math.ceil(64 * depth)))
-        self.conv8 = nn.Sequential(C2f(math.ceil(64 * depth), math.ceil(64 * depth), math.ceil(weight), shortcut=True),
+        self.conv8 = nn.Sequential(C2f(math.ceil(96 * depth), math.ceil(64 * depth), math.ceil(weight), shortcut=True),
                                    nn.Upsample(scale_factor=2),
                                    Gencov(math.ceil(64 * depth), math.ceil(128 * depth))
                                    )
@@ -113,7 +113,7 @@ class Generator(nn.Module):
         self.conv10 = nn.Sequential(
             C2f(math.ceil(32 * depth), math.ceil(16 * depth), math.ceil(weight), shortcut=False),
             Gencov(math.ceil(16 * depth), math.ceil(8 * depth)),
-            Gencov(math.ceil(8 * depth), 2, math.ceil(3 * weight), act=False)
+            Gencov(math.ceil(8 * depth), 2, math.ceil(3 * weight), act=False, bn=False)
         )
         self.tanh = nn.Tanh()
         self.concat = Concat()
@@ -130,7 +130,7 @@ class Generator(nn.Module):
         # neck net
 
         x7 = self.conv7(self.concat([x6, x3]))
-        x8 = self.conv8(x7)
+        x8 = self.conv8(self.concat([x7, x2]))
         x10 = self.conv9(x8)
         x11 = self.conv10(x10)
         x12 = self.tanh(x11)
@@ -153,16 +153,16 @@ class Discriminator(nn.Module):
         super(Discriminator, self).__init__()
         self.conv_in = nn.Sequential(Disconv(2, 16, 3)
                                      )
-        self.conv1 = nn.Sequential(Disconv(16, 32, 3, 2),  # 128
+        self.conv1 = nn.Sequential(Disconv(16, 32, 3, 2, bn=False),  # 128
                                    Disconv(32, 64, 3),
-                                   Disconv(64, 128, 3, 2),  # 64
+                                   Disconv(64, 128, 3, 2, bn=False),  # 64
                                    Disconv(128, 64, 3),
-                                   Disconv(64, 32, 3, 2),  # 32
+                                   Disconv(64, 32, 3, 2, bn=False),  # 32
                                    Disconv(32, 16, 3),
-                                   Disconv(16, 8, 3, 2),  # 16
+                                   Disconv(16, 8, 3, 2, bn=False),  # 16
                                    Disconv(8, 4, 3)
                                    )
-        self.conv_out = nn.Conv2d(4, 1, 3, padding='same')
+        self.conv_out = Disconv(4, 1, 3, bn=False, act=False)
 
         self.act = nn.Sigmoid()
 
@@ -177,8 +177,8 @@ class Discriminator(nn.Module):
 
 
 if __name__ == '__main__':
-    model = Discriminator()
-    # model_ = Convert()
-    d_params, d_macs = model_structure(model, (2, 256, 256))
-    # d_params, d_macs = model_structure(model_, (1, 256, 256))
+    # model = Discriminator()
+    model_ = Generator(1, 1)
+    #d_params, d_macs = model_structure(model, (2, 256, 256))
+    d_params, d_macs = model_structure(model_, (1, 256, 256))
     print(d_params, d_macs)

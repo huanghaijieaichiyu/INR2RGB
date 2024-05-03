@@ -45,7 +45,8 @@ def train(self):
     os.makedirs(os.path.join(path, 'discriminator'))
     # 创建训练日志文件
     train_log = path + '/log.txt'
-    train_log_txt_formatter = '{time_str} [Epoch] {epoch:03d} [gLoss] {gloss_str} [dLoss] {dloss_str}\n'
+    train_log_txt_formatter = ('{time_str} \t [Epoch] \t {epoch:03d} \t [gLoss] \t {gloss_str} \t [dLoss] \t '
+                               '{dloss_str} \t {Dx_str} \t [Dgz0] \t {Dgz0_str} \t [Dgz1] \t {Dgz1_str}\n')
 
     args_dict = self.__dict__
     print(args_dict)
@@ -333,9 +334,9 @@ def train(self):
                                                   epoch=epoch + 1,
                                                   gloss_str=" ".join(["{:4f}".format(np.mean(gen_loss))]),
                                                   dloss_str=" ".join(["{:4f}".format(np.mean(dis_loss))]),
-                                                  D_x_str=" ".join(["{:4f}".format(d_x)]),
-                                                  D_g_z1_str=" ".join(["{:4f}".format(d_g_z1)]),
-                                                  D_g_z2_str=" ".join(["{:4f}".format(d_g_z2)]),
+                                                  Dx_str=" ".join(["{:4f}".format(d_x)]),
+                                                  Dgz0_str=" ".join(["{:4f}".format(d_g_z1)]),
+                                                  Dgz1_str=" ".join(["{:4f}".format(d_g_z2)]),
                                                   PSN_str=" ".join(["{:4f}".format(np.mean(PSN))]))
         with open(train_log, "a") as f:
             f.write(to_write)
@@ -354,7 +355,11 @@ def train(self):
 
         log.add_images('real', img, epoch + 1)
         log.add_images('fake', PSlab2rgb(fake_tensor), epoch + 1)
+        if torch.eq(fake_tensor, torch.zeros_like(fake_tensor)).all():
+            print('fake tensor is zero!')
+            break
 
+        pbar.close()
     log.close()
 
 
