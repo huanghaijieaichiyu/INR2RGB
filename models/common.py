@@ -1093,7 +1093,18 @@ class CBAM(nn.Module):
 
 
 class Disconv(nn.Module):
-
+    """
+    standard convolution for discriminator
+    act: activation function, default: SiLU
+    bias: bias for convolution, default: False
+    bn: batch normalization, default: True
+    c1: input channels
+    c2: output channels
+    k: kernel size
+    s: stride
+    d: dilation
+    g: groups
+    """
     def __init__(self, c1, c2, k=3, s=1, d=1, g=1, act=True, bias=False, bn=True):
         super(Disconv, self).__init__()
         self.act = act
@@ -1106,6 +1117,18 @@ class Disconv(nn.Module):
 
 
 class Gencov(nn.Module):
+    """
+    standard convolution for generator
+    act: activation function, default: SiLU
+    bias: bias for convolution, default: False
+    bn: batch normalization, default: True
+    c1: input channels
+    c2: output channels
+    k: kernel size
+    s: stride
+    d: dilation
+    g: groups
+    """
 
     def __init__(self, c1, c2, k=3, s=1, d=1, g=1, act=True, bias=False, bn=True):
         super(Gencov, self).__init__()
