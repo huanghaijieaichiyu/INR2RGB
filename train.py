@@ -65,7 +65,8 @@ def train(self):
     # 选择模型参数
 
     generator = Generator(self.depth, self.weight)
-    discriminator = Discriminator(depth=self.img_size[0] / 256., batch_size=self.batch_size)
+    discriminator = Discriminator(
+        depth=self.img_size[0] / 256., batch_size=self.batch_size)
 
     if self.draw_model:
         print('-' * 50)
@@ -146,7 +147,7 @@ def train(self):
         assert self.lr_deduce != 'coslr', 'do not using tow stagics at the same time!'
 
         def lf(x): return (
-                (1 + math.cos(x * math.pi / self.epochs)) / 2) * (1 - 0.2) + 0.2
+            (1 + math.cos(x * math.pi / self.epochs)) / 2) * (1 - 0.2) + 0.2
 
         LR_G = LambdaLR(
             g_optimizer, lr_lambda=lf, last_epoch=-1, verbose=False)
@@ -196,8 +197,10 @@ def train(self):
     generator.train()
     discriminator.train()
     for epoch in range(self.epochs):
-        img = torch.zeros(self.batch_size, 3, self.img_size[0], self.img_size[1])
-        fake_tensor = torch.zeros(self.batch_size, 3, self.img_size[0], self.img_size[1])
+        img = torch.zeros(self.batch_size, 3,
+                          self.img_size[0], self.img_size[1])
+        fake_tensor = torch.zeros(
+            self.batch_size, 3, self.img_size[0], self.img_size[1])
         # 参数储存
         PSN = []
         # 断点训练参数设置
@@ -237,11 +240,13 @@ def train(self):
                 fake_inputs = discriminator(fake.detach())
                 real_outputs = discriminator(color / lamb)
                 # D 希望 real_loss 为 1
-                d_real_output = loss(real_outputs, torch.ones_like(real_outputs, dtype=torch.float32))
+                d_real_output = loss(real_outputs, torch.ones_like(
+                    real_outputs, dtype=torch.float32))
                 d_real_output.backward()
                 d_x = real_outputs.mean().item()
                 # D希望 fake_loss 为 0
-                d_fake_output = loss(fake_inputs, torch.zeros_like(fake_inputs, dtype=torch.float32))
+                d_fake_output = loss(fake_inputs, torch.zeros_like(
+                    fake_inputs, dtype=torch.float32))
                 d_fake_output.backward()
                 d_g_z1 = fake_inputs.mean().item()
                 d_output = (d_real_output.item() + d_fake_output.item()) / 2.
@@ -250,7 +255,8 @@ def train(self):
                 '''--------------- 训练生成器 ----------------'''
                 fake_inputs = discriminator(fake)
                 # G 希望 fake 为 1
-                g_output = loss(fake_inputs, torch.ones_like(fake_inputs, dtype=torch.float32))
+                g_output = loss(fake_inputs, torch.ones_like(
+                    fake_inputs, dtype=torch.float32))
                 g_output.backward()
                 d_g_z2 = fake_inputs.mean().item()
                 g_optimizer.step()
@@ -332,11 +338,16 @@ def train(self):
         # 写入日志文件
         to_write = train_log_txt_formatter.format(time_str=time.strftime("%Y_%m_%d_%H:%M:%S"),
                                                   epoch=epoch + 1,
-                                                  gloss_str=" ".join(["{:4f}".format(np.mean(gen_loss))]),
-                                                  dloss_str=" ".join(["{:4f}".format(np.mean(dis_loss))]),
-                                                  Dx_str=" ".join(["{:4f}".format(d_x)]),
-                                                  Dgz0_str=" ".join(["{:4f}".format(d_g_z1)]),
-                                                  Dgz1_str=" ".join(["{:4f}".format(d_g_z2)]),
+                                                  gloss_str=" ".join(
+                                                      ["{:4f}".format(np.mean(gen_loss))]),
+                                                  dloss_str=" ".join(
+                                                      ["{:4f}".format(np.mean(dis_loss))]),
+                                                  Dx_str=" ".join(
+                                                      ["{:4f}".format(d_x)]),
+                                                  Dgz0_str=" ".join(
+                                                      ["{:4f}".format(d_g_z1)]),
+                                                  Dgz1_str=" ".join(
+                                                      ["{:4f}".format(d_g_z2)]),
                                                   PSN_str=" ".join(["{:4f}".format(np.mean(PSN))]))
         with open(train_log, "a") as f:
             f.write(to_write)
@@ -351,7 +362,8 @@ def train(self):
         log.add_scalar('generation loss', np.mean(gen_loss), epoch + 1)
         log.add_scalar('discrimination loss', np.mean(dis_loss), epoch + 1)
         log.add_scalar('PSN', np.mean(PSN), epoch + 1)
-        log.add_scalar('learning rate', g_optimizer.state_dict()['param_groups'][0]['lr'], epoch + 1)
+        log.add_scalar('learning rate', g_optimizer.state_dict()
+                       ['param_groups'][0]['lr'], epoch + 1)
 
         log.add_images('real', img, epoch + 1)
         log.add_images('fake', PSlab2rgb(fake_tensor), epoch + 1)
@@ -373,7 +385,7 @@ if __name__ == '__main__':
                         help="size of the batches")  # batch大小
     parser.add_argument("--img_size", type=tuple,
                         default=(360, 360), help="size of the image")
-    parser.add_argument("--optimizer", type=str, default='Adam',
+    parser.add_argument("--optimizer", type=str, default='SGD',
                         choices=['AdamW', 'SGD', 'Adam', 'lion', 'rmp'])
     parser.add_argument("--num_workers", type=int, default=10,
                         help="number of data loading workers, if in windows, must be 0"
@@ -390,7 +402,7 @@ if __name__ == '__main__':
                         choices=['BCEBlurWithLogitsLoss', 'mse', 'bce',
                                  'FocalLoss', 'wgb'],
                         help="loss function")
-    parser.add_argument("--lr", type=float, default=4.5e-4,
+    parser.add_argument("--lr", type=float, default=3.5e-3,
                         help="learning rate, for adam is 1-e3, SGD is 1-e2")  # 学习率
     parser.add_argument("--momentum", type=float, default=0.5,
                         help="momentum for adam and SGD")

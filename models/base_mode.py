@@ -162,7 +162,7 @@ class Discriminator(nn.Module):
                                    Disconv(16, 8, 3, 2, bn=False),  # 16
                                    Disconv(8, 4, 3)
                                    )
-        self.conv_out = Disconv(4, 1, 3, bn=False, act=False)
+        self.conv_out = Disconv(4, 1, 3, bn=False, act=False)  # 最后输出不能归一化
 
         self.act = nn.Sigmoid()
 

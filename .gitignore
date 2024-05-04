@@ -2,6 +2,8 @@
 /coco/*
 /.idea/*
 /venv/*
-models/__pycache__/base_mode.cpython-310.pyc
-models/__pycache__/common.cpython-310.pyc
+models/__pycache__/8
 /*/__pycache__
+datasets/__pycache__/*
+models/__pycache__/*
+utils/__pycache__/*
