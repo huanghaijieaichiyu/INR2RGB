@@ -371,7 +371,6 @@ def train(self):
             print('fake tensor is zero!')
             break
 
-        pbar.close()
     log.close()
 
 
@@ -379,7 +378,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()  # 命令行选项、参数和子命令解析器
     parser.add_argument("--data", type=str,
                         default='../datasets/coco5000', help="path to dataset")
-    parser.add_argument("--epochs", type=int, default=500,
+    parser.add_argument("--epochs", type=int, default=1000,
                         help="number of epochs of training")  # 迭代次数
     parser.add_argument("--batch_size", type=int, default=8,
                         help="size of the batches")  # batch大小
