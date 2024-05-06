@@ -190,11 +190,10 @@ def train(self):
         cudnn.enabled = True
         cudnn.benchmark = True
         cudnn.deterministic = True
+
+    # 开始训练
     generator.train()
     discriminator.train()
-    # 训练进度条
-    pbar = tqdm(enumerate(train_loader), total=len(train_loader),
-                bar_format='{l_bar}{bar:10}| {n_fmt}/{total_fmt} {elapsed}', colour='#8762A5')
     for epoch in range(self.epochs):
         img = torch.zeros(self.batch_size, 3,
                           self.img_size[0], self.img_size[1])
@@ -215,14 +214,12 @@ def train(self):
             g_optimizer.load_state_dict(g_checkpoint['optimizer'])
             g_epoch = g_checkpoint['epoch']  # 设置开始的epoch
             loss.load_state_dict = g_checkpoint['loss']
-
             epoch = g_epoch
-
             print('继续第：{}轮训练'.format(epoch + 1))
-
             self.resume = ['']  # 跳出循环
         print('第{}轮训练'.format(epoch + 1))
-
+        pbar = tqdm(enumerate(train_loader), total=len(train_loader),
+                    bar_format='{l_bar}{bar:10}| {n_fmt}/{total_fmt} {elapsed}', colour='#8762A5')
         for data in pbar:
             target, (img, _) = data
             # 对输入图像进行处理
