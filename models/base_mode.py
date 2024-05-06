@@ -102,11 +102,7 @@ class Generator(nn.Module):
                                    )
         self.conv4 = nn.Sequential(Gencov(math.ceil(128 * depth), math.ceil(256 * depth), math.ceil(3 * weight), 2),
                                    C2f(math.ceil(256 * depth), math.ceil(512 *
-                                       depth), math.ceil(weight), shortcut=True),
-                                   Gencov(
-                                       math.ceil(512 * depth), math.ceil(1024 * depth), math.ceil(3 * weight)),
-                                   Gencov(math.ceil(1024 * depth),
-                                          math.ceil(512 * depth))
+                                       depth), math.ceil(weight), shortcut=True)
                                    )
         self.conv5 = nn.Sequential(SPPELAN(math.ceil(512 * depth), math.ceil(512 * depth), math.ceil(256 * depth)),
                                    Gencov(math.ceil(512 * depth), math.ceil(256 * depth), math.ceil(3 * weight)))
@@ -210,34 +206,32 @@ class Generator_lite(nn.Module):
                                           math.ceil(128 * depth), math.ceil(weight))
                                    )
         self.conv4 = nn.Sequential(Gencov(math.ceil(128 * depth), math.ceil(256 * depth), math.ceil(3 * weight), 2),
-                                   Gencov(math.ceil(256 * depth),
-                                          math.ceil(512 * depth), math.ceil(weight))
+                                   Gencov(
+                                       math.ceil(256 * depth), math.ceil(512 * depth), math.ceil(5 * weight))
                                    )
         self.conv5 = nn.Sequential(
             Gencov(math.ceil(512 * depth), math.ceil(256 * depth), math.ceil(3 * weight)))
-        self.conv6 = nn.Sequential(Gencov(math.ceil(256 * depth), math.ceil(128 * depth), math.ceil(weight)),
+        self.conv6 = nn.Sequential(Gencov(math.ceil(256 * depth), math.ceil(128 * depth), math.ceil(5 * weight)),
                                    nn.Upsample(scale_factor=2),
-                                   Gencov(math.ceil(128 * depth), math.ceil(64 * depth)))
-        self.conv7 = nn.Sequential(Gencov(math.ceil(192 * depth), math.ceil(96 * depth), math.ceil(weight)),
+                                   Gencov(math.ceil(128 * depth), math.ceil(64 * depth), math.ceil(3 * weight)))
+        self.conv7 = nn.Sequential(Gencov(math.ceil(192 * depth), math.ceil(96 * depth), math.ceil(5 * weight)),
                                    nn.Upsample(scale_factor=2),
-                                   Gencov(math.ceil(96 * depth), math.ceil(64 * depth)))
-        self.conv8 = nn.Sequential(Gencov(math.ceil(96 * depth), math.ceil(64 * depth), math.ceil(weight)),
+                                   Gencov(math.ceil(96 * depth), math.ceil(64 * depth),  math.ceil(3 * weight)))
+        self.conv8 = nn.Sequential(Gencov(math.ceil(96 * depth), math.ceil(64 * depth), math.ceil(3 * weight)),
                                    nn.Upsample(scale_factor=2),
-                                   Gencov(math.ceil(64 * depth),
-                                          math.ceil(128 * depth))
+                                   Gencov(
+                                       math.ceil(64 * depth), math.ceil(128 * depth), math.ceil(3 * weight))
                                    )
-        self.conv9 = nn.Sequential(
-            Gencov(math.ceil(128 * depth),
-                   math.ceil(64 * depth), math.ceil(weight)),
-            Gencov(math.ceil(64 * depth), math.ceil(32 * depth))
-        )
-        self.conv10 = nn.Sequential(
-            Gencov(math.ceil(32 * depth),
-                   math.ceil(16 * depth), math.ceil(weight)),
-            Gencov(math.ceil(16 * depth), math.ceil(8 * depth)),
-            Gencov(math.ceil(8 * depth), 2,
-                   math.ceil(3 * weight), act=False, bn=False)
-        )
+        self.conv9 = nn.Sequential(Gencov(math.ceil(128 * depth), math.ceil(64 * depth), math.ceil(3 * weight)),
+                                   Gencov(math.ceil(64 * depth),
+                                          math.ceil(32 * depth))
+                                   )
+        self.conv10 = nn.Sequential(Gencov(math.ceil(32 * depth), math.ceil(16 * depth), math.ceil(3 * weight)),
+                                    Gencov(math.ceil(16 * depth),
+                                           math.ceil(8 * depth)),
+                                    Gencov(
+                                        math.ceil(8 * depth), 2, math.ceil(3 * weight), act=False, bn=False)
+                                    )
         self.tanh = nn.Tanh()
         self.concat = Concat()
 

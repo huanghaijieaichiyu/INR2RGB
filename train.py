@@ -64,7 +64,7 @@ def train(self):
 
     # 选择模型参数
 
-    generator = Generator_lite(self.depth, self.weight)
+    generator = Generator(self.depth, self.weight)
     discriminator = Discriminator(
         depth=self.img_size[0] / 256., batch_size=self.batch_size)
 
