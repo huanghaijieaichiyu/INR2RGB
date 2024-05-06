@@ -45,8 +45,8 @@ def train(self):
     os.makedirs(os.path.join(path, 'discriminator'))
     # 创建训练日志文件
     train_log = path + '/log.txt'
-    train_log_txt_formatter = ('{time_str} \t [Epoch] \t {epoch:03d} \t [gLoss] \t {gloss_str} \t [dLoss] \t '
-                               '{dloss_str} \t {Dx_str} \t [Dgz0] \t {Dgz0_str} \t [Dgz1] \t {Dgz1_str}\n')
+    train_log_txt_formatter = (
+        '{time_str} \t [Epoch] \t {epoch:03d} \t [gLoss] \t {gloss_str} \t [dLoss] \t {dloss_str} \t {Dx_str} \t [Dgz0] \t {Dgz0_str} \t [Dgz1] \t {Dgz1_str}\n')
 
     args_dict = self.__dict__
     print(args_dict)
@@ -220,7 +220,7 @@ def train(self):
             self.resume = ['']  # 跳出循环
         print('第{}轮训练'.format(epoch + 1))
         pbar = tqdm(enumerate(train_loader), total=len(train_loader),
-                    bar_format='{l_bar}{bar:10}| {n_fmt}/{total_fmt} {elapsed}', postfix=dict, colour='#8762A5')
+                    bar_format='{l_bar}{bar:10}| {n_fmt}/{total_fmt} {elapsed}', colour='#8762A5')
         for data in pbar:
             target, (img, _) = data
             # 对输入图像进行处理
@@ -239,14 +239,14 @@ def train(self):
                 fake = generator(gray)
                 fake_inputs = discriminator(fake.detach())
                 real_outputs = discriminator(color / lamb)
+                real_lable = torch.ones_like(fake_inputs)
+                fake_lable = torch.zeros_like(fake_inputs)
                 # D 希望 real_loss 为 1
-                d_real_output = loss(real_outputs, torch.ones_like(
-                    real_outputs, dtype=torch.float32))
+                d_real_output = loss(real_outputs, real_lable)
                 d_real_output.backward()
                 d_x = real_outputs.mean().item()
                 # D希望 fake_loss 为 0
-                d_fake_output = loss(fake_inputs, torch.zeros_like(
-                    fake_inputs, dtype=torch.float32))
+                d_fake_output = loss(fake_inputs, fake_lable)
                 d_fake_output.backward()
                 d_g_z1 = fake_inputs.mean().item()
                 d_output = (d_real_output.item() + d_fake_output.item()) / 2.
@@ -255,8 +255,7 @@ def train(self):
                 '''--------------- 训练生成器 ----------------'''
                 fake_inputs = discriminator(fake)
                 # G 希望 fake 为 1
-                g_output = loss(fake_inputs, torch.ones_like(
-                    fake_inputs, dtype=torch.float32))
+                g_output = loss(fake_inputs, real_lable)
                 g_output.backward()
                 d_g_z2 = fake_inputs.mean().item()
                 g_optimizer.step()
@@ -272,14 +271,6 @@ def train(self):
                 per_D_loss = d_output
                 gen_loss.append(g_output.item())
                 dis_loss.append(d_output)
-
-                if g_output.mean().item() == 0. or d_output == 0.:
-                    break
-                # 梯度消失提前终止
-                if math.isnan(g_output.mean().item()) or math.isnan(d_output):
-                    pbar.close()
-                    print('NaN detected!')
-                    break
                 # 图像拼接还原
                 fake_tensor = torch.zeros_like(img, dtype=torch.float32)
                 fake_tensor[:, 0, :, :] = gray[:, 0, :, :]  # 主要切片位置
@@ -302,6 +293,10 @@ def train(self):
                                      % (epoch + 1, self.epochs, target + 1, len(train_loader),
                                         d_output, g_output.item(), d_x, d_g_z1, d_g_z2, np.mean(PSN),
                                         g_optimizer.state_dict()['param_groups'][0]['lr']))
+        # 判断模型是否提前终止
+        if torch.eq(fake_tensor, torch.zeros_like(fake_tensor)).all():
+            print('fake tensor is zero!')
+            break
 
         # 学习率退火
         if self.lr_deduce == 'llamb' or 'coslr':
@@ -367,9 +362,6 @@ def train(self):
 
         log.add_images('real', img, epoch + 1)
         log.add_images('fake', PSlab2rgb(fake_tensor), epoch + 1)
-        if torch.eq(fake_tensor, torch.zeros_like(fake_tensor)).all():
-            print('fake tensor is zero!')
-            break
 
     log.close()
 
@@ -384,7 +376,7 @@ if __name__ == '__main__':
                         help="size of the batches")  # batch大小
     parser.add_argument("--img_size", type=tuple,
                         default=(360, 360), help="size of the image")
-    parser.add_argument("--optimizer", type=str, default='SGD',
+    parser.add_argument("--optimizer", type=str, default='Adam',
                         choices=['AdamW', 'SGD', 'Adam', 'lion', 'rmp'])
     parser.add_argument("--num_workers", type=int, default=10,
                         help="number of data loading workers, if in windows, must be 0"
@@ -401,11 +393,11 @@ if __name__ == '__main__':
                         choices=['BCEBlurWithLogitsLoss', 'mse', 'bce',
                                  'FocalLoss', 'wgb'],
                         help="loss function")
-    parser.add_argument("--lr", type=float, default=3.5e-3,
+    parser.add_argument("--lr", type=float, default=2.5e-4,
                         help="learning rate, for adam is 1-e3, SGD is 1-e2")  # 学习率
     parser.add_argument("--momentum", type=float, default=0.5,
                         help="momentum for adam and SGD")
-    parser.add_argument("--depth", type=float, default=0.75,
+    parser.add_argument("--depth", type=float, default=1,
                         help="depth of the generator")
     parser.add_argument("--weight", type=float, default=1,
                         help="weight of the generator")
