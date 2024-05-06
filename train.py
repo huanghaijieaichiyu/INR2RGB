@@ -19,7 +19,7 @@ from tqdm import tqdm
 from rich import print
 
 from datasets.data_set import MyDataset
-from models.base_mode import Generator, Discriminator
+from models.base_mode import Generator, Discriminator, Generator_lite
 from utils.color_trans import PSlab2rgb, PSrgb2lab
 from utils.loss import BCEBlurWithLogitsLoss, FocalLoss
 from utils.model_map import model_structure
@@ -64,7 +64,7 @@ def train(self):
 
     # 选择模型参数
 
-    generator = Generator(self.depth, self.weight)
+    generator = Generator_lite(self.depth, self.weight)
     discriminator = Discriminator(
         depth=self.img_size[0] / 256., batch_size=self.batch_size)
 
