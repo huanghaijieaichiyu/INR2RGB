@@ -227,7 +227,7 @@ def train(self):
             img_lab = PSrgb2lab(img)
             gray, a, b = torch.split(img_lab, 1, 1)
             color = torch.cat([a, b], dim=1)
-            lamb = 128.  # 取绝对值最大值，避免负数超出索引
+            lamb = color.abs().max()  # 取绝对值最大值，避免负数超出索引
             gray = gray.to(device)
             color = color.to(device)
 
