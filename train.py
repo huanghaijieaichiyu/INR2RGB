@@ -179,10 +179,6 @@ def train(self):
 
     img_pil = transforms.ToPILImage()
 
-    # 储存loss 判断模型好坏
-    loss_all = [99.]
-    gen_loss = []
-    dis_loss = []
     # 寄存器判断模型提前终止条件
     per_G_loss = 99
     per_D_loss = 99
@@ -196,6 +192,9 @@ def train(self):
         cudnn.deterministic = True
     generator.train()
     discriminator.train()
+    # 训练进度条
+    pbar = tqdm(enumerate(train_loader), total=len(train_loader),
+                bar_format='{l_bar}{bar:10}| {n_fmt}/{total_fmt} {elapsed}', colour='#8762A5')
     for epoch in range(self.epochs):
         img = torch.zeros(self.batch_size, 3,
                           self.img_size[0], self.img_size[1])
@@ -203,6 +202,10 @@ def train(self):
             self.batch_size, 3, self.img_size[0], self.img_size[1])
         # 参数储存
         PSN = []
+        # 储存loss 判断模型好坏
+        loss_all = [99.]
+        gen_loss = []
+        dis_loss = []
         # 断点训练参数设置
         if self.resume != ['']:
             g_path_checkpoint = self.resume[0]
@@ -219,8 +222,7 @@ def train(self):
 
             self.resume = ['']  # 跳出循环
         print('第{}轮训练'.format(epoch + 1))
-        pbar = tqdm(enumerate(train_loader), total=len(train_loader),
-                    bar_format='{l_bar}{bar:10}| {n_fmt}/{total_fmt} {elapsed}', colour='#8762A5')
+
         for data in pbar:
             target, (img, _) = data
             # 对输入图像进行处理
@@ -362,7 +364,7 @@ def train(self):
 
         log.add_images('real', img, epoch + 1)
         log.add_images('fake', PSlab2rgb(fake_tensor), epoch + 1)
-
+    pbar.close()
     log.close()
 
 
