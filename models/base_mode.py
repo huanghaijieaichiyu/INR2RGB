@@ -2,7 +2,7 @@ import math
 
 import torch.nn as nn
 
-from models.common import Conv, C2f, SPPELAN, Concat, Disconv, Gencov
+from models.common import SPPF, Conv, C2f, SPPELAN, Concat, Disconv, Gencov
 from utils.model_map import model_structure
 
 
@@ -167,13 +167,13 @@ class Discriminator(nn.Module):
         super(Discriminator, self).__init__()
         self.conv_in = nn.Sequential(Disconv(2, 16, 3)
                                      )
-        self.conv1 = nn.Sequential(Disconv(16, 32, 3, 2, bn=False),  # 128
+        self.conv1 = nn.Sequential(Disconv(16, 32, 3, 2),  # 128
                                    Disconv(32, 64, 3),
-                                   Disconv(64, 128, 3, 2, bn=False),  # 64
+                                   Disconv(64, 128, 3, 2),  # 64
                                    Disconv(128, 64, 3),
-                                   Disconv(64, 32, 3, 2, bn=False),  # 32
+                                   Disconv(64, 32, 3, 2),  # 32
                                    Disconv(32, 16, 3),
-                                   Disconv(16, 8, 3, 2, bn=False),  # 16
+                                   Disconv(16, 8, 3, 2),  # 16
                                    Disconv(8, 4, 3)
                                    )
         self.conv_out = Disconv(4, 1, 3, bn=False, act=False)  # 最后输出不能归一化
@@ -209,8 +209,8 @@ class Generator_lite(nn.Module):
                                    Gencov(
                                        math.ceil(256 * depth), math.ceil(512 * depth), math.ceil(5 * weight))
                                    )
-        self.conv5 = nn.Sequential(
-            Gencov(math.ceil(512 * depth), math.ceil(256 * depth), math.ceil(3 * weight)))
+        self.conv5 = nn.Sequential(SPPF(math.ceil(512 * depth), math.ceil(512 * depth), 5),
+                                   Gencov(math.ceil(512 * depth), math.ceil(256 * depth), math.ceil(3 * weight)))
         self.conv6 = nn.Sequential(Gencov(math.ceil(256 * depth), math.ceil(128 * depth), math.ceil(5 * weight)),
                                    nn.Upsample(scale_factor=2),
                                    Gencov(math.ceil(128 * depth), math.ceil(64 * depth), math.ceil(3 * weight)))

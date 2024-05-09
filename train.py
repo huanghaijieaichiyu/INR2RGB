@@ -195,10 +195,6 @@ def train(self):
     generator.train()
     discriminator.train()
     for epoch in range(self.epochs):
-        img = torch.zeros(self.batch_size, 3,
-                          self.img_size[0], self.img_size[1])
-        fake_tensor = torch.zeros(
-            self.batch_size, 3, self.img_size[0], self.img_size[1])
         # 参数储存
         PSN = []
         # 储存loss 判断模型好坏
@@ -279,15 +275,14 @@ def train(self):
                     fake_tensor, img, data_range=255.)
                 PSN.append(psn)
                 pbar.set_description('Epoch: [%d/%d]\t Batch: [%d/%d]\t Loss_D: %.4f\t Loss_G: %.4f\t D(x): %.4f\t D(G('
-                                     'z)): %.4f / %.4f'
-                                     "\t PSN: %.4f\t learning ratio: %.4f"
+                                     'z)): %.4f / %.4f\t PSN: %.4f\t learning ratio: %.4f'
                                      % (epoch + 1, self.epochs, target + 1, len(train_loader),
                                         d_output, g_output.item(), d_x, d_g_z1, d_g_z2, np.mean(PSN),
                                         g_optimizer.state_dict()['param_groups'][0]['lr']))
-                # 判断模型是否提前终止
-                if torch.eq(fake_tensor, torch.zeros_like(fake_tensor)).all():
-                    print('fake tensor is zero!')
-                    break
+        # 判断模型是否提前终止
+        if torch.eq(fake_tensor, torch.zeros_like(fake_tensor)).all():
+            print('fake tensor is zero!')
+            break
 
         # 学习率退火
         if self.lr_deduce == 'llamb' or 'coslr':

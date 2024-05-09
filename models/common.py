@@ -450,8 +450,8 @@ class Bottleneck(nn.Module):
     def __init__(self, c1, c2, shortcut=True, g=1, k=(3, 3), e=0.5):
         super().__init__()
         c_ = int(c2 * e)  # hidden channels
-        self.cv1 = Conv(c1, c_, k[0], 1)
-        self.cv2 = Conv(c_, c2, k[1], 1, g=g)
+        self.cv1 = Gencov(c1, c_, k[0], 1)
+        self.cv2 = Gencov(c_, c2, k[1], 1, g=g)
         self.add = shortcut and c1 == c2
 
     def forward(self, x):
@@ -734,11 +734,11 @@ class SPPELAN(nn.Module):
     def __init__(self, c1, c2, c3):  # ch_in, ch_out, number, shortcut, groups, expansion
         super().__init__()
         self.c = c3
-        self.cv1 = Conv(c1, c3, 1, 1)
+        self.cv1 = Gencov(c1, c3, 1, 1)
         self.cv2 = SP(5)
         self.cv3 = SP(5)
         self.cv4 = SP(5)
-        self.cv5 = Conv(4 * c3, c2, 1, 1)
+        self.cv5 = Gencov(4 * c3, c2, 1, 1)
 
     def forward(self, x):
         y = [self.cv1(x)]
@@ -871,8 +871,8 @@ class C2f(nn.Module):
         """
         super().__init__()
         self.c = int(c2 * e)  # hidden channels
-        self.cv1 = Conv(c1, 2 * self.c, 1, 1)
-        self.cv2 = Conv((2 + n) * self.c, c2, 1)  # optional act=FReLU(c2)
+        self.cv1 = Gencov(c1, 2 * self.c, 1, 1)
+        self.cv2 = Gencov((2 + n) * self.c, c2, 1)  # optional act=FReLU(c2)
         self.m = nn.ModuleList(Bottleneck(self.c, self.c, shortcut, g, k=(
             (3, 3), (3, 3)), e=1.0) for _ in range(n))
 
