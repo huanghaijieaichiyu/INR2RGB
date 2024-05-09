@@ -5,7 +5,7 @@ timm<=0.9.16
 torchvision<=0.17.0+cu118
 tqdm<=4.65.0
 ptflops<= 0.7.2.2
-scikit-image<=0.22.0
-rich
+torcheval<=0.70
+rich<=0.10.0
 # 测试用
 # cython
