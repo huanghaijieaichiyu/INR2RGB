@@ -6,7 +6,7 @@ import time
 
 import numpy as np
 import torch
-from skimage.metrics import peak_signal_noise_ratio
+from torcheval.metrics.functional import peak_signal_noise_ratio
 from timm.optim import Lion, RMSpropTF
 from torch import nn
 from torch.backends import cudnn
@@ -275,27 +275,19 @@ def train(self):
                 fake_tensor[:, 0, :, :] = gray[:, 0, :, :]  # 主要切片位置
                 fake_tensor[:, 1:, :, :] = lamb * fake
 
-                fake_img = np.array(
-                    img_pil(PSlab2rgb(fake_tensor)[0]), dtype=np.float32)
-                # print(fake_img)
-                # 加入新的评价指标：PSN,SSIM
-
-                real_pil = img_pil(img[0])
                 psn = peak_signal_noise_ratio(
-                    np.array(real_pil, dtype=np.float32) / 255., fake_img / 255., data_range=1)
-
+                    fake_tensor, img, data_range=255.)
                 PSN.append(psn)
-
                 pbar.set_description('Epoch: [%d/%d]\t Batch: [%d/%d]\t Loss_D: %.4f\t Loss_G: %.4f\t D(x): %.4f\t D(G('
                                      'z)): %.4f / %.4f'
                                      "\t PSN: %.4f\t learning ratio: %.4f"
                                      % (epoch + 1, self.epochs, target + 1, len(train_loader),
                                         d_output, g_output.item(), d_x, d_g_z1, d_g_z2, np.mean(PSN),
                                         g_optimizer.state_dict()['param_groups'][0]['lr']))
-        # 判断模型是否提前终止
-        if torch.eq(fake_tensor, torch.zeros_like(fake_tensor)).all():
-            print('fake tensor is zero!')
-            break
+                # 判断模型是否提前终止
+                if torch.eq(fake_tensor, torch.zeros_like(fake_tensor)).all():
+                    print('fake tensor is zero!')
+                    break
 
         # 学习率退火
         if self.lr_deduce == 'llamb' or 'coslr':
@@ -392,7 +384,7 @@ if __name__ == '__main__':
                         choices=['BCEBlurWithLogitsLoss', 'mse', 'bce',
                                  'FocalLoss', 'wgb'],
                         help="loss function")
-    parser.add_argument("--lr", type=float, default=2.5e-4,
+    parser.add_argument("--lr", type=float, default=3.5e-4,
                         help="learning rate, for adam is 1-e3, SGD is 1-e2")  # 学习率
     parser.add_argument("--momentum", type=float, default=0.5,
                         help="momentum for adam and SGD")

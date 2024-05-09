@@ -1105,12 +1105,13 @@ class Disconv(nn.Module):
     d: dilation
     g: groups
     """
+
     def __init__(self, c1, c2, k=3, s=1, d=1, g=1, act=True, bias=False, bn=True):
         super(Disconv, self).__init__()
         self.act = act
         self.conv = Conv2dSame(c1, c2, k, s, groups=g, dilation=d, bias=bias)
         self.bn = nn.BatchNorm2d(c2) if bn else nn.Identity()
-        self.act = nn.LeakyReLU() if act else nn.Identity()
+        self.act = nn.SiLU() if act else nn.Identity()
 
     def forward(self, x):
         return self.act(self.bn(self.conv(x)))
