@@ -165,16 +165,15 @@ class Discriminator(nn.Module):
         """
         self.batch_size = batch_size
         super(Discriminator, self).__init__()
-        self.conv_in = nn.Sequential(Disconv(2, 16, 3)
+        self.conv_in = nn.Sequential(Disconv(2, 8),
+                                     Disconv(8, 16, 3, 2),  # 128
                                      )
         self.conv1 = nn.Sequential(Disconv(16, 32, 3, 2),  # 128
-                                   Disconv(32, 64, 3),
-                                   Disconv(64, 128, 3, 2),  # 64
-                                   Disconv(128, 64, 3),
+                                   Disconv(32, 64),
                                    Disconv(64, 32, 3, 2),  # 32
-                                   Disconv(32, 16, 3),
+                                   Disconv(32, 16),
                                    Disconv(16, 8, 3, 2),  # 16
-                                   Disconv(8, 4, 3)
+                                   Disconv(8, 4)
                                    )
         self.conv_out = Disconv(4, 1, 3, bn=False, act=False)  # 最后输出不能归一化
 
