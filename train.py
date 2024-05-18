@@ -197,6 +197,8 @@ def train(self):
     for epoch in range(self.epochs):
         # 参数储存
         PSN = []
+        fake_tensor = torch.zeros(
+            (self.batch_size, 3, self.img_size[0], self.img_size[1]))
         # 储存loss 判断模型好坏
         loss_all = [99.]
         gen_loss = []
@@ -204,7 +206,6 @@ def train(self):
         # 断点训练参数设置
         if self.resume != ['']:
             g_path_checkpoint = self.resume[0]
-
             g_checkpoint = torch.load(g_path_checkpoint)  # 加载断点
             generator.load_state_dict(g_checkpoint['net'])
             g_optimizer.load_state_dict(g_checkpoint['optimizer'])
@@ -222,7 +223,8 @@ def train(self):
             img_lab = PSrgb2lab(img)
             gray, a, b = torch.split(img_lab, 1, 1)
             color = torch.cat([a, b], dim=1)
-            lamb = color.abs().max()  # 取绝对值最大值，避免负数超出索引
+            # lamb = color.abs().max()  # 取绝对值最大值，避免负数超出索引
+            lamb = 128.
             gray = gray.to(device)
             color = color.to(device)
 
@@ -256,14 +258,7 @@ def train(self):
                 g_optimizer.step()
 
             with torch.no_grad():
-                # 判断模型是否需要提前终止
-                if per_G_loss == np.mean(g_output.mean().item()) or per_D_loss == np.mean(d_output):
-                    toleration += 1
-                if toleration > self.batch_size * 0.1:
-                    break
 
-                per_G_loss = g_output.item()
-                per_D_loss = d_output
                 gen_loss.append(g_output.item())
                 dis_loss.append(d_output)
                 # 图像拼接还原
@@ -379,7 +374,7 @@ if __name__ == '__main__':
                         choices=['BCEBlurWithLogitsLoss', 'mse', 'bce',
                                  'FocalLoss', 'wgb'],
                         help="loss function")
-    parser.add_argument("--lr", type=float, default=3.5e-4,
+    parser.add_argument("--lr", type=float, default=2.5e-4,
                         help="learning rate, for adam is 1-e3, SGD is 1-e2")  # 学习率
     parser.add_argument("--momentum", type=float, default=0.5,
                         help="momentum for adam and SGD")
@@ -389,7 +384,7 @@ if __name__ == '__main__':
                         help="weight of the generator")
     parser.add_argument("--model", type=str, default="train",
                         help="train or test model")
-    parser.add_argument("--b1", type=float, default=0.9,
+    parser.add_argument("--b1", type=float, default=0.5,
                         help="adam: decay of first order momentum of gradient")  # 动量梯度下降第一个参数
     parser.add_argument("--b2", type=float, default=0.999,
                         help="adam: decay of first order momentum of gradient")  # 动量梯度下降第二个参数

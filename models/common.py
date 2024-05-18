@@ -734,11 +734,11 @@ class SPPELAN(nn.Module):
     def __init__(self, c1, c2, c3):  # ch_in, ch_out, number, shortcut, groups, expansion
         super().__init__()
         self.c = c3
-        self.cv1 = Gencov(c1, c3, 1, 1)
+        self.cv1 = Conv(c1, c3, 1, 1)
         self.cv2 = SP(5)
         self.cv3 = SP(5)
         self.cv4 = SP(5)
-        self.cv5 = Gencov(4 * c3, c2, 1, 1)
+        self.cv5 = Conv(4 * c3, c2, 1, 1)
 
     def forward(self, x):
         y = [self.cv1(x)]
@@ -1108,7 +1108,6 @@ class Disconv(nn.Module):
 
     def __init__(self, c1, c2, k=3, s=1, d=1, g=1, act=True, bias=False, bn=True):
         super(Disconv, self).__init__()
-        self.act = act
         self.conv = Conv2dSame(c1, c2, k, s, groups=g, dilation=d, bias=bias)
         self.bn = nn.BatchNorm2d(c2) if bn else nn.Identity()
         self.act = nn.SiLU() if act else nn.Identity()
@@ -1133,7 +1132,6 @@ class Gencov(nn.Module):
 
     def __init__(self, c1, c2, k=3, s=1, d=1, g=1, act=True, bias=False, bn=True):
         super(Gencov, self).__init__()
-        self.act = act
         self.conv = Conv2dSame(c1, c2, k, s, groups=g, dilation=d, bias=bias)
         self.bn = nn.BatchNorm2d(c2) if bn else nn.Identity()
         self.act = nn.SiLU() if act else nn.Identity()
