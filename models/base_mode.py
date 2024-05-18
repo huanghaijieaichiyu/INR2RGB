@@ -159,7 +159,7 @@ class Discriminator(nn.Module):
     Discriminator model with no activation function
     """
 
-    def __init__(self, depth=1, batch_size=8):
+    def __init__(self, batch_size=8):
         """
         :param batch_size: batch size
         """
@@ -235,8 +235,10 @@ class Generator_lite(nn.Module):
                                        math.ceil(64 * depth), math.ceil(128 * depth), math.ceil(3 * weight))
                                    )
         self.conv9 = Gencov(math.ceil(128 * depth),
-                            math.ceil(32 * depth), math.ceil(3 * weight))
-        self.conv10 = nn.Sequential(Gencov(math.ceil(32 * depth), math.ceil(8 * depth)),
+                            math.ceil(64 * depth), math.ceil(3 * weight))
+        self.conv10 = nn.Sequential(Gencov(math.ceil(64 * depth), math.ceil(32 * depth), math.ceil(3 * weight)),
+                                    Gencov(math.ceil(32 * depth),
+                                           math.ceil(8 * depth)),
                                     Gencov(
                                         math.ceil(8 * depth), 2, math.ceil(3 * weight), act=False, bn=False)
                                     )
