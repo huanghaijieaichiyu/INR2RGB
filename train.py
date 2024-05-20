@@ -137,6 +137,8 @@ def train(self):
         raise ValueError('No such optimizer: {}'.format(self.optimizer))
 
     # 学习率退火
+    LR_D = None
+    LR_G = None
     if self.lr_deduce == 'coslr':
         LR_D = torch.optim.lr_scheduler.CosineAnnealingLR(
             d_optimizer, self.epochs, 1e-6)
@@ -163,8 +165,7 @@ def train(self):
             g_optimizer, 'min', factor=0.2, patience=10, verbose=False, threshold=1e-4, threshold_mode='rel',
             cooldown=10, min_lr=1e-6, eps=1e-5)
     if self.lr_deduce == 'no':
-        LR_D = None
-        LR_G = None
+        pass
 
     # 损失函数
     if self.loss == 'BCEBlurWithLogitsLoss':
@@ -180,13 +181,6 @@ def train(self):
         raise NotImplementedError
     loss = loss.to(device)
 
-    img_pil = transforms.ToPILImage()
-
-    # 寄存器判断模型提前终止条件
-    per_G_loss = 99
-    per_D_loss = 99
-    toleration = 0
-    nan = float('nan')
     # 此处开始训练
     # 使用cuDNN加速训练
     if self.cuDNN:
@@ -195,13 +189,16 @@ def train(self):
         cudnn.deterministic = True
 
     # 开始训练
-    generator.train()
     discriminator.train()
+    generator.train()
     for epoch in range(self.epochs):
         # 参数储存
         PSN = []
         fake_tensor = torch.zeros(
             (self.batch_size, 3, self.img_size[0], self.img_size[1]))
+        d_g_z2 = 0.
+        d_output = 0
+        g_output = 0
         # 储存loss 判断模型好坏
         loss_all = [99.]
         gen_loss = []
@@ -239,8 +236,8 @@ def train(self):
                 fake = generator(gray)
                 fake_inputs = discriminator(fake.detach())
                 real_outputs = discriminator(color / lamb)
-                real_lable = torch.ones_like(fake_inputs)
-                fake_lable = torch.zeros_like(fake_inputs)
+                real_lable = torch.ones_like(fake_inputs, requires_grad=False)
+                fake_lable = torch.zeros_like(fake_inputs, requires_grad=False)
                 # D 希望 real_loss 为 1
                 d_real_output = loss(real_outputs, real_lable)
                 d_real_output.backward()
@@ -281,14 +278,20 @@ def train(self):
         if torch.eq(fake_tensor, torch.zeros_like(fake_tensor)).all():
             print('fake tensor is zero!')
             break
+        if d_g_z2 == 0.:
+            break
 
         # 学习率退火
         if self.lr_deduce == 'no':
             pass
         elif self.lr_deduce == 'reduceLR':
+            assert LR_D is not None, 'no such lr deduce'
+            assert LR_G is not None, 'no such lr deduce'
             LR_D.step(d_output)
             LR_G.step(g_output)
         elif self.lr_deduce == 'coslr' or 'lamb':
+            assert LR_D is not None, 'no such lr deduce'
+            assert LR_G is not None, 'no such lr deduce'
             LR_D.step()
             LR_G.step()
         g_checkpoint = {
@@ -304,7 +307,7 @@ def train(self):
             'loss': loss.state_dict() if loss is not None else None
         }
         # 保持最佳模型
-
+        assert min(loss_all) > 0., 'loss_all is zero!'
         if np.mean(g_output.item()) < min(loss_all):
             torch.save(g_checkpoint, path + '/generator/best.pt')
         loss_all.append(np.mean(g_output.item()))
@@ -359,7 +362,7 @@ if __name__ == '__main__':
                         help="size of the batches")  # batch大小
     parser.add_argument("--img_size", type=tuple,
                         default=(256, 256), help="size of the image")
-    parser.add_argument("--optimizer", type=str, default='Adam',
+    parser.add_argument("--optimizer", type=str, default='SGD',
                         choices=['AdamW', 'SGD', 'Adam', 'lion', 'rmp'])
     parser.add_argument("--num_workers", type=int, default=10,
                         help="number of data loading workers, if in windows, must be 0"
@@ -380,7 +383,7 @@ if __name__ == '__main__':
                         help="learning rate, for adam is 1-e3, SGD is 1-e2")  # 学习率
     parser.add_argument("--momentum", type=float, default=0.5,
                         help="momentum for adam and SGD")
-    parser.add_argument("--depth", type=float, default=0.75,
+    parser.add_argument("--depth", type=float, default=1,
                         help="depth of the generator")
     parser.add_argument("--weight", type=float, default=1,
                         help="weight of the generator")
