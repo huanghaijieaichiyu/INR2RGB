@@ -2,7 +2,7 @@ import math
 
 import torch.nn as nn
 
-from models.common import SPPF, Conv, C2f, SPPELAN, Concat, Disconv, Gencov
+from models.common import SPPF, Conv, C2f, SPPELAN, Concat, Disconv, Gencov, Conv_trans
 from utils.model_map import model_structure
 
 
@@ -106,29 +106,29 @@ class Generator(nn.Module):
                                    )
         self.conv5 = nn.Sequential(SPPELAN(math.ceil(512 * depth), math.ceil(512 * depth), math.ceil(256 * depth)),
                                    Gencov(math.ceil(512 * depth), math.ceil(256 * depth), math.ceil(3 * weight)))
-        self.conv6 = nn.Sequential(C2f(math.ceil(256 * depth), math.ceil(128 * depth), math.ceil(weight), shortcut=False),
-                                   nn.Upsample(scale_factor=2),
-                                   Gencov(math.ceil(128 * depth), math.ceil(64 * depth)))
-        self.conv7 = nn.Sequential(C2f(math.ceil(192 * depth), math.ceil(96 * depth), math.ceil(weight), shortcut=True),
-                                   nn.Upsample(scale_factor=2),
-                                   Gencov(math.ceil(96 * depth), math.ceil(64 * depth)))
-        self.conv8 = nn.Sequential(C2f(math.ceil(96 * depth), math.ceil(64 * depth), math.ceil(weight), shortcut=True),
-                                   nn.Upsample(scale_factor=2),
-                                   Gencov(math.ceil(64 * depth),
-                                          math.ceil(128 * depth))
+        self.conv6 = nn.Sequential(C2f(math.ceil(256 * depth), math.ceil(128 * depth), math.ceil(weight), shortcut=True),
+                                   nn.Upsample(
+                                       scale_factor=2, mode='bilinear', align_corners=True),
+                                   Gencov(math.ceil(128 * depth),
+                                          math.ceil(64 * depth), 3)
                                    )
-        self.conv9 = nn.Sequential(
-            C2f(math.ceil(128 * depth), math.ceil(64 * depth),
-                math.ceil(weight), shortcut=False),
-            Gencov(math.ceil(64 * depth), math.ceil(32 * depth))
-        )
-        self.conv10 = nn.Sequential(
-            C2f(math.ceil(32 * depth), math.ceil(16 * depth),
-                math.ceil(weight), shortcut=False),
-            Gencov(math.ceil(16 * depth), math.ceil(8 * depth)),
-            Gencov(math.ceil(8 * depth), 2,
-                   math.ceil(3 * weight), act=False, bn=False)
-        )
+        self.conv7 = nn.Sequential(C2f(math.ceil(192 * depth), math.ceil(96 * depth), math.ceil(weight), shortcut=False),
+                                   nn.Upsample(
+                                       scale_factor=2, mode='bilinear', align_corners=True),
+                                   Gencov(math.ceil(96 * depth),
+                                          math.ceil(64 * depth), 3)
+                                   )
+        self.conv8 = nn.Sequential(nn.Upsample(scale_factor=2, mode='bilinear', align_corners=True),
+                                   Gencov(math.ceil(64 * depth),
+                                          math.ceil(32 * depth), 3)
+                                   )
+
+        self.conv9 = nn.Sequential(C2f(math.ceil(32 * depth), math.ceil(16 * depth), math.ceil(weight), shortcut=False),
+                                   Gencov(math.ceil(16 * depth),
+                                          math.ceil(8 * depth)),
+                                   Gencov(math.ceil(8 * depth), 2,
+                                          math.ceil(3 * weight), act=False, bn=False)
+                                   )
         self.tanh = nn.Tanh()
         self.concat = Concat()
 
@@ -144,12 +144,10 @@ class Generator(nn.Module):
         # neck net
 
         x7 = self.conv7(self.concat([x6, x3]))
-        x8 = self.conv8(self.concat([x7, x2]))
-        x10 = self.conv9(x8)
-        x11 = self.conv10(x10)
-        x12 = self.tanh(x11)
+        x8 = self.conv8(x7)
+        x9 = self.tanh(self.conv9(x8))
 
-        x = x12.view(-1, 2, x.shape[2], x.shape[3])
+        x = x9.view(-1, 2, x.shape[2], x.shape[3])
 
         return x
 
@@ -166,18 +164,20 @@ class Discriminator(nn.Module):
         self.batch_size = batch_size
         super(Discriminator, self).__init__()
         self.conv_in = nn.Sequential(Disconv(2, 8),
-                                     Disconv(8, 16, 3, 2),  # 128
+                                     Disconv(8, 16, 3),  # 128
                                      )
         self.conv1 = nn.Sequential(Disconv(16, 32, 3, 2),  # 128
                                    Disconv(32, 64),
+                                   Disconv(64, 128, 3, 2),  # 64
+                                   Disconv(128, 64),
                                    Disconv(64, 32, 3, 2),  # 32
                                    Disconv(32, 16),
                                    Disconv(16, 8, 3, 2),  # 16
                                    Disconv(8, 4)
                                    )
-        self.conv_out = Disconv(4, 1, 3, bn=False, act=False)  # 最后输出不能归一化
+        self.conv_out = Disconv(4, 1, 3,  act=False)  # 最后输出不能归一化
 
-        self.flat = nn.Flatten()
+        self.flat = nn.Identity()
 
         self.linear = nn.Sequential(
             nn.Linear(16 * 16 * batch_size, 16 * 16),

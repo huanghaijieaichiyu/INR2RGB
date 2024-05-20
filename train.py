@@ -64,7 +64,7 @@ def train(self):
 
     # 选择模型参数
 
-    generator = Generator_lite(self.depth, self.weight)
+    generator = Generator(self.depth, self.weight)
     discriminator = Discriminator(batch_size=self.batch_size)
 
     if self.draw_model:
@@ -161,6 +161,9 @@ def train(self):
         LR_G = torch.optim.lr_scheduler.ReduceLROnPlateau(
             g_optimizer, 'min', factor=0.2, patience=10, verbose=False, threshold=1e-4, threshold_mode='rel',
             cooldown=10, min_lr=1e-6, eps=1e-5)
+    if self.lr_deduce == 'no':
+        LR_D = None
+        LR_G = None
 
     # 损失函数
     if self.loss == 'BCEBlurWithLogitsLoss':
@@ -279,15 +282,14 @@ def train(self):
             break
 
         # 学习率退火
-        if self.lr_deduce == 'llamb' or 'coslr':
-            LR_D.step()
-            LR_G.step()
+        if self.lr_deduce == 'no':
+            pass
         elif self.lr_deduce == 'reduceLR':
             LR_D.step(d_output)
             LR_G.step(g_output)
-        else:
-            pass
-
+        elif self.lr_deduce == 'coslr' or 'lamb':
+            LR_D.step()
+            LR_G.step()
         g_checkpoint = {
             'net': generator.state_dict(),
             'optimizer': g_optimizer.state_dict(),
@@ -387,7 +389,7 @@ if __name__ == '__main__':
                         help="adam: decay of first order momentum of gradient")  # 动量梯度下降第一个参数
     parser.add_argument("--b2", type=float, default=0.999,
                         help="adam: decay of first order momentum of gradient")  # 动量梯度下降第二个参数
-    parser.add_argument("--lr_deduce", type=str, default='llamb',
+    parser.add_argument("--lr_deduce", type=str, default='no',
                         choices=['coslr', 'llamb', 'reduceLR', 'no'], help='using a lr tactic')
 
     parser.add_argument("--device", type=str, default='cuda', choices=['cpu', 'cuda'],
