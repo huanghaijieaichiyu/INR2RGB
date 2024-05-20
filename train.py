@@ -65,7 +65,8 @@ def train(self):
     # 选择模型参数
 
     generator = Generator(self.depth, self.weight)
-    discriminator = Discriminator(batch_size=self.batch_size)
+    discriminator = Discriminator(
+        batch_size=self.batch_size, img_size=self.img_size[0])
 
     if self.draw_model:
         print('-' * 50)
@@ -357,7 +358,7 @@ if __name__ == '__main__':
     parser.add_argument("--batch_size", type=int, default=8,
                         help="size of the batches")  # batch大小
     parser.add_argument("--img_size", type=tuple,
-                        default=(360, 360), help="size of the image")
+                        default=(256, 256), help="size of the image")
     parser.add_argument("--optimizer", type=str, default='Adam',
                         choices=['AdamW', 'SGD', 'Adam', 'lion', 'rmp'])
     parser.add_argument("--num_workers", type=int, default=10,
@@ -379,7 +380,7 @@ if __name__ == '__main__':
                         help="learning rate, for adam is 1-e3, SGD is 1-e2")  # 学习率
     parser.add_argument("--momentum", type=float, default=0.5,
                         help="momentum for adam and SGD")
-    parser.add_argument("--depth", type=float, default=1,
+    parser.add_argument("--depth", type=float, default=0.75,
                         help="depth of the generator")
     parser.add_argument("--weight", type=float, default=1,
                         help="weight of the generator")

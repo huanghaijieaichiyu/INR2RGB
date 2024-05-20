@@ -157,35 +157,24 @@ class Discriminator(nn.Module):
     Discriminator model with no activation function
     """
 
-    def __init__(self, batch_size=8):
+    def __init__(self, batch_size=8, img_size=256):
         """
         :param batch_size: batch size
         """
         self.batch_size = batch_size
+        ratio = img_size / 256.
         super(Discriminator, self).__init__()
-        self.conv_in = nn.Sequential(Disconv(2, 8),
-                                     Disconv(8, 16, 3),  # 128
+        self.conv_in = nn.Sequential(Disconv(2, 8, 3, 2),  # 128
+                                     Disconv(8, 16),
                                      )
-        self.conv1 = nn.Sequential(Disconv(16, 32, 3, 2),  # 128
+        self.conv1 = nn.Sequential(Disconv(16, 32, 3, 2),  # 64
                                    Disconv(32, 64),
-                                   Disconv(64, 128, 3, 2),  # 64
-                                   Disconv(128, 64),
-                                   Disconv(64, 32, 3, 2),  # 32
+                                   Disconv(64, 32, 3, 2),  # 16
                                    Disconv(32, 16),
-                                   Disconv(16, 8, 3, 2),  # 16
+                                   Disconv(16, 8, 3, 2),  # 8
                                    Disconv(8, 4)
                                    )
-        self.conv_out = Disconv(4, 1, 3,  act=False)  # 最后输出不能归一化
-
-        self.flat = nn.Identity()
-
-        self.linear = nn.Sequential(
-            nn.Linear(16 * 16 * batch_size, 16 * 16),
-            nn.LeakyReLU(),
-            nn.Linear(16*16, 8*8),
-            nn.LeakyReLU(),
-            nn.Linear(8*8, batch_size)
-        )
+        self.conv_out = Disconv(4, 1, 3, 2, bn=False, act=False)  # 最后输出不能归一化
 
         self.act = nn.Sigmoid()
 
@@ -194,9 +183,10 @@ class Discriminator(nn.Module):
         :param x: input image
         :return: output
         """
-        x1 = self.act(self.conv_out(self.conv1(self.conv_in(x))))
+        x = self.act(self.conv_out(self.conv1(self.conv_in(x)))).view(
+            self.batch_size if x.shape[0] == self.batch_size else x.shape[0], -1)
 
-        return x1.view(self.batch_size if x.shape[0] == self.batch_size else x.shape[0], -1)
+        return x
 
 
 class Generator_lite(nn.Module):
