@@ -7,7 +7,7 @@ import time
 import numpy as np
 import torch
 from rich import print
-from skimage.metrics import peak_signal_noise_ratio
+from torcheval.metrics.functional import peak_signal_noise_ratio
 from timm.optim import Lion, RMSpropTF
 from torch import nn
 from torch.backends import cudnn
@@ -119,7 +119,7 @@ def train(self):
         assert self.lr_deduce != 'coslr', 'do not using tow stagics at the same time!'
 
         def lf(x): return (
-                (1 + math.cos(x * math.pi / self.epochs)) / 2) * (1 - 0.2) + 0.2
+            (1 + math.cos(x * math.pi / self.epochs)) / 2) * (1 - 0.2) + 0.2
 
         LR = LambdaLR(
             optimizer, lr_lambda=lf, last_epoch=-1, verbose=False)
@@ -211,21 +211,19 @@ def train(self):
             fake_tensor[:, 0, :, :] = gray[:, 0, :, :]  # 主要切片位置
             fake_tensor[:, 1:, :, :] = lamb * fake
 
-            fake_img = np.array(
-                img_pil(PSlab2rgb(fake_tensor)[0]), dtype=np.float32)
+            fake_img = PSlab2rgb(fake_tensor)
             # print(fake_img)
             # 加入新的评价指标：PSN,SSIM
-
-            real_pil = img_pil(img[0])
             psn = peak_signal_noise_ratio(
-                np.array(real_pil, dtype=np.float32) / 255., fake_img / 255., data_range=1)
+                fake_img, img, data_range=255.)
 
             PSN.append(psn)
 
             pbar.set_description("Epoch [%d/%d] ----------- Batch [%d/%d] ----------- loss: %.4f "
                                  "-----------PSN: %.4f-------learning ratio: %.4f"
                                  % (
-                                     epoch + 1, self.epochs, target + 1, len(train_loader),
+                                     epoch + 1, self.epochs, target +
+                                     1, len(train_loader),
                                      np.mean(output.mean().item()),
                                      np.mean(PSN),
                                      optimizer.state_dict()['param_groups'][0]['lr']))
@@ -267,12 +265,14 @@ def train(self):
             torch.save(checkpoint, path + '/%d.pt' % (epoch + 1))
         # 可视化训练结果
 
-        log.add_scalar('generation loss', np.mean(output.mean().item()), epoch + 1)
+        log.add_scalar('generation loss', np.mean(
+            output.mean().item()), epoch + 1)
         log.add_scalar('PSN', np.mean(PSN), epoch + 1)
-        log.add_scalar('learning rate', optimizer.state_dict()['param_groups'][0]['lr'], epoch + 1)
+        log.add_scalar('learning rate', optimizer.state_dict()
+                       ['param_groups'][0]['lr'], epoch + 1)
 
         log.add_images('real', img, epoch + 1)
-        log.add_images('fake', PSlab2rgb(fake_tensor), epoch + 1)
+        log.add_images('fake', fake_img, epoch + 1)
 
     log.close()
 
@@ -286,7 +286,7 @@ if __name__ == '__main__':
     parser.add_argument("--batch_size", type=int, default=8,
                         help="size of the batches")  # batch大小
     parser.add_argument("--img_size", type=tuple,
-                        default=(400, 400), help="size of the image")
+                        default=(256, 256), help="size of the image")
     parser.add_argument("--optimizer", type=str, default='AdamW',
                         choices=['AdamW', 'SGD', 'Adam', 'lion', 'rmp'])
     parser.add_argument("--num_workers", type=int, default=20,

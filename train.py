@@ -266,8 +266,9 @@ def train(self):
                 fake_tensor[:, 0, :, :] = gray[:, 0, :, :]  # 主要切片位置
                 fake_tensor[:, 1:, :, :] = lamb * fake
 
+                fake_img = PSlab2rgb(fake_tensor)
                 psn = peak_signal_noise_ratio(
-                    fake_tensor, img, data_range=255.)
+                    fake_img, img, data_range=255.)
                 PSN.append(psn)
                 pbar.set_description('Epoch: [%d/%d]\t Batch: [%d/%d]\t Loss_D: %.4f\t Loss_G: %.4f\t D(x): %.4f\t D(G('
                                      'z)): %.4f / %.4f\t PSN: %.4f\t learning ratio: %.4f'
@@ -347,7 +348,7 @@ def train(self):
                        ['param_groups'][0]['lr'], epoch + 1)
 
         log.add_images('real', img, epoch + 1)
-        log.add_images('fake', PSlab2rgb(fake_tensor), epoch + 1)
+        log.add_images('fake', fake_img, epoch + 1)
     pbar.close()
     log.close()
 
@@ -362,7 +363,7 @@ if __name__ == '__main__':
                         help="size of the batches")  # batch大小
     parser.add_argument("--img_size", type=tuple,
                         default=(256, 256), help="size of the image")
-    parser.add_argument("--optimizer", type=str, default='SGD',
+    parser.add_argument("--optimizer", type=str, default='Adam',
                         choices=['AdamW', 'SGD', 'Adam', 'lion', 'rmp'])
     parser.add_argument("--num_workers", type=int, default=10,
                         help="number of data loading workers, if in windows, must be 0"
@@ -379,7 +380,7 @@ if __name__ == '__main__':
                         choices=['BCEBlurWithLogitsLoss', 'mse', 'bce',
                                  'FocalLoss', 'wgb'],
                         help="loss function")
-    parser.add_argument("--lr", type=float, default=4.5e-4,
+    parser.add_argument("--lr", type=float, default=3.5e-4,
                         help="learning rate, for adam is 1-e3, SGD is 1-e2")  # 学习率
     parser.add_argument("--momentum", type=float, default=0.5,
                         help="momentum for adam and SGD")
@@ -393,7 +394,7 @@ if __name__ == '__main__':
                         help="adam: decay of first order momentum of gradient")  # 动量梯度下降第一个参数
     parser.add_argument("--b2", type=float, default=0.999,
                         help="adam: decay of first order momentum of gradient")  # 动量梯度下降第二个参数
-    parser.add_argument("--lr_deduce", type=str, default='no',
+    parser.add_argument("--lr_deduce", type=str, default='llamb',
                         choices=['coslr', 'llamb', 'reduceLR', 'no'], help='using a lr tactic')
 
     parser.add_argument("--device", type=str, default='cuda', choices=['cpu', 'cuda'],

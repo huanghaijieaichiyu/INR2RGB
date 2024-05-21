@@ -21,11 +21,11 @@ def parse_args():
     parser.add_argument("--data", type=str, default='0',
                         help='path to dataset, and 0 is to open your camara')
     parser.add_argument(
-        "--model", type=str, default='runs/train(1)/generator/100.pt', help="path to model")
+        "--model", type=str, default='runs/train/generator/250.pt', help="path to model")
     parser.add_argument("--batch_size", type=int, default=16,
                         help="size of the batches")  # batch大小
     parser.add_argument("--img_size", type=tuple,
-                        default=(360, 360), help="size of the image")
+                        default=(256, 256), help="size of the image")
     parser.add_argument("--num_workers", type=int, default=0,
                         help="number of data loading workers, if in windows, must be 0"
                         )
@@ -100,7 +100,7 @@ def predict_live(self):
         device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     else:
         device = torch.device('cpu')
-    model = Generator(0.75,1)
+    model = Generator(1, 1)
     model_structure(model, (1, self.img_size[0], self.img_size[1]))
     checkpoint = torch.load(self.model)
     model.load_state_dict(checkpoint['net'])
@@ -136,7 +136,8 @@ def predict_live(self):
             0].astype(np.float32)
         fake = np.zeros(
             (self.img_size[0], self.img_size[1], 3), dtype=np.float32)
-        fake[:, :, 0] = gray.permute(0, 2, 3, 1).detach().cpu().numpy()[0][:, :, 0]
+        fake[:, :, 0] = gray.permute(
+            0, 2, 3, 1).detach().cpu().numpy()[0][:, :, 0]
         fake[:, :, 1:] = fake_ab * 128
         fake = cv2.cvtColor(fake, cv2.COLOR_Lab2BGR)
         # fake *= 255.
@@ -146,7 +147,8 @@ def predict_live(self):
         cv2.imshow('gray', cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY))
 
         # 写入文件
-        fake = np.array(255 * fake, dtype=np.uint8) # float转uint8 fake[0,1]转[0,255]
+        # float转uint8 fake[0,1]转[0,255]
+        fake = np.array(255 * fake, dtype=np.uint8)
         write.write(fake)
 
         key = cv2.waitKey(1)
