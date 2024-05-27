@@ -312,7 +312,10 @@ def train(self):
         if np.mean(g_output.item()) < min(loss_all):
             torch.save(g_checkpoint, path + '/generator/best.pt')
         loss_all.append(np.mean(g_output.item()))
-
+        if PSN[epoch] > max(PSN):
+            torch.save(g_checkpoint, path + '/generator/best_PSN.pt')
+            torch.save(d_checkpoint, path + '/discriminator/best_PSN.pt')
+        # 保持最后一个模型
         # 保持训练权重
         torch.save(g_checkpoint, path + '/generator/last.pt')
         torch.save(d_checkpoint, path + '/discriminator/last.pt')
@@ -362,7 +365,7 @@ if __name__ == '__main__':
     parser.add_argument("--batch_size", type=int, default=8,
                         help="size of the batches")  # batch大小
     parser.add_argument("--img_size", type=tuple,
-                        default=(256, 256), help="size of the image")
+                        default=(360, 360), help="size of the image")
     parser.add_argument("--optimizer", type=str, default='Adam',
                         choices=['AdamW', 'SGD', 'Adam', 'lion', 'rmp'])
     parser.add_argument("--num_workers", type=int, default=10,

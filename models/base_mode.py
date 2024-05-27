@@ -93,15 +93,15 @@ class Generator(nn.Module):
         self.conv1 = Gencov(1, math.ceil(8 * depth))
         self.conv2 = nn.Sequential(Gencov(math.ceil(8 * depth), math.ceil(16 * depth), math.ceil(3 * weight), 2),
                                    C2f(math.ceil(16 * depth), math.ceil(32 *
-                                       depth), math.ceil(weight), shortcut=True)
+                                       depth), math.ceil(3* weight), shortcut=True)
                                    )
         self.conv3 = nn.Sequential(Gencov(math.ceil(32 * depth), math.ceil(64 * depth), math.ceil(3 * weight), 2),
                                    C2f(math.ceil(64 * depth), math.ceil(128 *
-                                       depth), math.ceil(weight), shortcut=True)
+                                       depth), math.ceil(3 *weight), shortcut=True)
                                    )
         self.conv4 = nn.Sequential(Gencov(math.ceil(128 * depth), math.ceil(256 * depth), math.ceil(3 * weight), 2),
                                    C2f(math.ceil(256 * depth), math.ceil(512 *
-                                       depth), math.ceil(weight), shortcut=True)
+                                       depth), math.ceil(3*weight), shortcut=True)
                                    )
         self.conv5 = nn.Sequential(SPPELAN(math.ceil(512 * depth), math.ceil(512 * depth), math.ceil(256 * depth)),
                                    Gencov(math.ceil(512 * depth), math.ceil(256 * depth), math.ceil(3 * weight)))
@@ -167,33 +167,22 @@ class Discriminator(nn.Module):
                                      Disconv(8, 16),
                                      )
         self.conv1 = nn.Sequential(Disconv(16, 32, 3, 2),  # 64
-                                   Disconv(32, 16, 1),
-                                   Disconv(16, 8, 3, 2),  # 32
+                                   Disconv(32, 64),
+                                   Disconv(64, 32, 3, 2),  # 16
+                                   Disconv(32, 16),
+                                   Disconv(16, 8, 3, 2),  # 8
                                    Disconv(8, 4)
                                    )
-        self.conv_out = Disconv(4, 1, 3)  # 最后输出不能归一化
+        self.conv_out = Disconv(4, 1, 3, 2, bn=False, act=False)  # 最后输出不能归一化
 
         self.act = nn.Sigmoid()
-
-        self.flatten = nn.Flatten()
-
-        self.linear = nn.Sequential(nn.Linear(int(32 * 32 * ratio * ratio), 32 * 16),
-                                    nn.LeakyReLU(0.2),
-                                    nn.Linear(16*32, 8*32),
-                                    nn.LeakyReLU(0.2),
-                                    nn.Linear(8*32, 4*32),
-                                    nn.LeakyReLU(0.2),
-                                    nn.Linear(4*32, 2*32),
-                                    nn.LeakyReLU(0.2),
-                                    nn.Linear(2*32, batch_size)
-                                    )
 
     def forward(self, x):
         """
         :param x: input image
         :return: output
         """
-        x = self.act(self.linear(self.flatten(self.conv_out(self.conv1(self.conv_in(x)))))).view(
+        x = self.act(self.conv_out(self.conv1(self.conv_in(x)))).view(
             self.batch_size if x.shape[0] == self.batch_size else x.shape[0], -1)
 
         return x
