@@ -193,7 +193,7 @@ def train(self):
     generator.train()
     for epoch in range(self.epochs):
         # 参数储存
-        PSN = []
+        PSN = [0.]
         fake_tensor = torch.zeros(
             (self.batch_size, 3, self.img_size[0], self.img_size[1]))
         d_g_z2 = 0.
@@ -273,7 +273,7 @@ def train(self):
                 pbar.set_description('Epoch: [%d/%d]\t Batch: [%d/%d]\t Loss_D: %.4f\t Loss_G: %.4f\t D(x): %.4f\t D(G('
                                      'z)): %.4f / %.4f\t PSN: %.4f\t learning ratio: %.4f'
                                      % (epoch + 1, self.epochs, target + 1, len(train_loader),
-                                        d_output, g_output.item(), d_x, d_g_z1, d_g_z2, np.mean(PSN),
+                                        d_output, g_output.item(), d_x, d_g_z1, d_g_z2, psn,
                                         g_optimizer.state_dict()['param_groups'][0]['lr']))
         # 判断模型是否提前终止
         if torch.eq(fake_tensor, torch.zeros_like(fake_tensor)).all():
@@ -312,7 +312,7 @@ def train(self):
         if np.mean(g_output.item()) < min(loss_all):
             torch.save(g_checkpoint, path + '/generator/best.pt')
         loss_all.append(np.mean(g_output.item()))
-        if PSN[epoch] > max(PSN):
+        if psn > max(PSN):
             torch.save(g_checkpoint, path + '/generator/best_PSN.pt')
             torch.save(d_checkpoint, path + '/discriminator/best_PSN.pt')
         # 保持最后一个模型
