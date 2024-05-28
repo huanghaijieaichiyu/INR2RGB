@@ -2,7 +2,7 @@ import math
 
 import torch.nn as nn
 
-from models.common import SPPF, Conv, C2f, SPPELAN, Concat, Disconv, Gencov, Conv_trans, CA
+from models.common import SPPF, Conv, C2f, SPPELAN, Concat, Disconv, Gencov, Conv_trans, EMA
 from utils.model_map import model_structure
 
 
@@ -97,12 +97,11 @@ class Generator(nn.Module):
                                    )
         self.conv3 = nn.Sequential(Gencov(math.ceil(32 * depth), math.ceil(64 * depth), math.ceil(3 * weight), 2),
                                    C2f(math.ceil(64 * depth), math.ceil(128 *
-                                       depth), math.ceil(3 *weight), shortcut=True),
-                                   CA(math.ceil(128 * depth), math.ceil(128 * depth))
-                                   )
+                                       depth), math.ceil(3 *weight), shortcut=True))
         self.conv4 = nn.Sequential(Gencov(math.ceil(128 * depth), math.ceil(256 * depth), math.ceil(3 * weight), 2),
                                    C2f(math.ceil(256 * depth), math.ceil(512 *
-                                       depth), math.ceil(3*weight), shortcut=True)
+                                       depth), math.ceil(3*weight), shortcut=True),
+                                   EMA(math.ceil(512 * depth))
                                    )
         self.conv5 = nn.Sequential(SPPELAN(math.ceil(512 * depth), math.ceil(512 * depth), math.ceil(256 * depth)),
                                    Gencov(math.ceil(512 * depth), math.ceil(256 * depth), math.ceil(3 * weight)))

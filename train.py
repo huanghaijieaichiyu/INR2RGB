@@ -193,7 +193,7 @@ def train(self):
     generator.train()
     for epoch in range(self.epochs):
         # 参数储存
-        PSN = [0.]
+        PSN = []
         fake_tensor = torch.zeros(
             (self.batch_size, 3, self.img_size[0], self.img_size[1]))
         d_g_z2 = 0.
@@ -312,6 +312,7 @@ def train(self):
         if np.mean(g_output.item()) < min(loss_all):
             torch.save(g_checkpoint, path + '/generator/best.pt')
         loss_all.append(np.mean(g_output.item()))
+
         if psn > max(PSN):
             torch.save(g_checkpoint, path + '/generator/best_PSN.pt')
             torch.save(d_checkpoint, path + '/discriminator/best_PSN.pt')
@@ -340,8 +341,6 @@ def train(self):
             # 5 epochs for saving another model
         if (epoch + 1) % 10 == 0 and (epoch + 1) >= 10:
             torch.save(g_checkpoint, path + '/generator/%d.pt' % (epoch + 1))
-            torch.save(d_checkpoint, path + '/discriminator/%d.pt' %
-                       (epoch + 1))
         # 可视化训练结果
 
         log.add_scalar('generation loss', np.mean(gen_loss), epoch + 1)
