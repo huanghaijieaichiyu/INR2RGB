@@ -193,7 +193,8 @@ def train(self):
     generator.train()
     for epoch in range(self.epochs):
         # 参数储存
-        PSN = []
+        PSN = [0.]
+        source_g = [0.]
         fake_tensor = torch.zeros(
             (self.batch_size, 3, self.img_size[0], self.img_size[1]))
         d_g_z2 = 0.
@@ -270,6 +271,7 @@ def train(self):
                 psn = peak_signal_noise_ratio(
                     fake_img, img, data_range=255.)
                 PSN.append(psn)
+                source_g.append(d_g_z2)
                 pbar.set_description('Epoch: [%d/%d]\t Batch: [%d/%d]\t Loss_D: %.4f\t Loss_G: %.4f\t D(x): %.4f\t D(G('
                                      'z)): %.4f / %.4f\t PSN: %.4f\t learning ratio: %.4f'
                                      % (epoch + 1, self.epochs, target + 1, len(train_loader),
@@ -308,7 +310,9 @@ def train(self):
             'loss': loss.state_dict() if loss is not None else None
         }
         # 保持最佳模型
-        assert min(loss_all) > 0., 'loss_all is zero!'
+        assert d_g_z2 is not 0, 'd_g_z2 is zero!'
+        if d_g_z2 < min(source_g):
+            torch.save(d_checkpoint, path + '/discriminator/best_source.pt')
         if np.mean(g_output.item()) < min(loss_all):
             torch.save(g_checkpoint, path + '/generator/best.pt')
         loss_all.append(np.mean(g_output.item()))
@@ -339,7 +343,7 @@ def train(self):
             f.write(to_write)
 
             # 5 epochs for saving another model
-        if (epoch + 1) % 10 == 0 and (epoch + 1) >= 10:
+        if (epoch + 1) % 50 == 0 and (epoch + 1) >= 50:
             torch.save(g_checkpoint, path + '/generator/%d.pt' % (epoch + 1))
         # 可视化训练结果
 
@@ -365,7 +369,7 @@ if __name__ == '__main__':
                         help="size of the batches")  # batch大小
     parser.add_argument("--img_size", type=tuple,
                         default=(360, 360), help="size of the image")
-    parser.add_argument("--optimizer", type=str, default='Adam',
+    parser.add_argument("--optimizer", type=str, default='SGD',
                         choices=['AdamW', 'SGD', 'Adam', 'lion', 'rmp'])
     parser.add_argument("--num_workers", type=int, default=10,
                         help="number of data loading workers, if in windows, must be 0"
@@ -382,7 +386,7 @@ if __name__ == '__main__':
                         choices=['BCEBlurWithLogitsLoss', 'mse', 'bce',
                                  'FocalLoss', 'wgb'],
                         help="loss function")
-    parser.add_argument("--lr", type=float, default=3.5e-4,
+    parser.add_argument("--lr", type=float, default=3.5e-3,
                         help="learning rate, for adam is 1-e3, SGD is 1-e2")  # 学习率
     parser.add_argument("--momentum", type=float, default=0.5,
                         help="momentum for adam and SGD")
