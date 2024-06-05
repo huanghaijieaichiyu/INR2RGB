@@ -310,7 +310,7 @@ def train(self):
             'loss': loss.state_dict() if loss is not None else None
         }
         # 保持最佳模型
-        assert d_g_z2 is not 0, 'd_g_z2 is zero!'
+        assert d_g_z2 != 0, 'd_g_z2 is zero!'
         if d_g_z2 < min(source_g):
             torch.save(d_checkpoint, path + '/discriminator/best_source.pt')
         if np.mean(g_output.item()) < min(loss_all):

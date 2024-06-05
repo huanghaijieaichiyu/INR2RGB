@@ -107,19 +107,20 @@ class Generator(nn.Module):
         self.conv5 = nn.Sequential(SPPELAN(math.ceil(512 * depth), math.ceil(512 * depth), math.ceil(256 * depth)),
                                    Gencov(math.ceil(512 * depth), math.ceil(256 * depth), math.ceil(3 * weight)))
         self.conv6 = nn.Sequential(
+            Gencov(math.ceil(768 * depth), math.ceil(256 * depth), math.ceil(3 * weight)),
             C2f(math.ceil(256 * depth), math.ceil(128 * depth), math.ceil(weight), shortcut=True),
             nn.Upsample(
                 scale_factor=2, mode='bilinear', align_corners=True),
             Gencov(math.ceil(128 * depth),
                    math.ceil(64 * depth), 3)
-            )
+        )
         self.conv7 = nn.Sequential(
             C2f(math.ceil(192 * depth), math.ceil(96 * depth), math.ceil(weight), shortcut=False),
             nn.Upsample(
                 scale_factor=2, mode='bilinear', align_corners=True),
             Gencov(math.ceil(96 * depth),
                    math.ceil(64 * depth), 3)
-            )
+        )
         self.conv8 = nn.Sequential(nn.Upsample(scale_factor=2, mode='bilinear', align_corners=True),
                                    Gencov(math.ceil(64 * depth),
                                           math.ceil(32 * depth), 3)
@@ -141,7 +142,7 @@ class Generator(nn.Module):
         x3 = self.conv3(x2)
         x4 = self.conv4(x3)
         x5 = self.conv5(x4)
-        x6 = self.conv6(x5)
+        x6 = self.conv6(self.concat([x5, x4]))
 
         # neck net
 
@@ -166,17 +167,27 @@ class Discriminator(nn.Module):
         self.batch_size = batch_size
         ratio = img_size / 256.
         super(Discriminator, self).__init__()
-        self.conv_in = nn.Sequential(Disconv(2, 8, 3, 2),  # 128
-                                     Disconv(8, 16),
+        self.conv_in = nn.Sequential(Disconv(2, 8,),
+                                     Disconv(8, 16, 3, 2),  # 128
                                      )
         self.conv1 = nn.Sequential(Disconv(16, 32, 3, 2),  # 64
                                    Disconv(32, 64),
-                                   Disconv(64, 32, 3, 2),  # 16
+                                   Disconv(64, 32, 3, 2),  # 32
                                    Disconv(32, 16),
-                                   Disconv(16, 8, 3, 2),  # 8
+                                   Disconv(16, 8, 3, 2),  # 16
                                    Disconv(8, 4)
                                    )
-        self.conv_out = Disconv(4, 1, 3, 2, bn=False, act=False)  # 最后输出不能归一化
+        self.conv_out = Disconv(4, 1)
+
+        self.flat = nn.Flatten()
+
+        self.liner = nn.Sequential(nn.Linear(math.ceil(16 * ratio)**2, 16 * 16),
+                                   nn.LeakyReLU(),
+                                   nn.Linear(16 * 16, 8 * 16),
+                                   nn.LeakyReLU(),
+                                   nn.Linear(8 * 16, 8 * 8),
+                                   nn.LeakyReLU(),
+                                   nn.Linear(8 * 8, batch_size))
 
         self.act = nn.Sigmoid()
 
@@ -185,7 +196,7 @@ class Discriminator(nn.Module):
         :param x: input image
         :return: output
         """
-        x = self.act(self.conv_out(self.conv1(self.conv_in(x)))).view(
+        x = self.act(self.liner(self.flat(self.conv_out(self.conv1(self.conv_in(x)))))).view(
             self.batch_size if x.shape[0] == self.batch_size else x.shape[0], -1)
 
         return x
