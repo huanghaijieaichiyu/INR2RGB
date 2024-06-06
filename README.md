@@ -4,8 +4,6 @@
 # 训练脚本如下：
 !python train.py --data_dir='your data directory' --save_dir='your path to save the trained model' --epochs='number of epochs' --optimizer='your optimizer for instance:SGD AdamW'
 # 其他训练参数可输入 opt--h 来查询
-#本人在Windows下训练，相应脚本如下:
-!python train.py --data="D:/code/datasets/bddn/images" --epochs=100 --loss=mse --batch_size=8
 # tensorboard 可视化命令：
 !bash tensorboard --log_dir='runs/tensorboard'
 #使用默认摄像头进行预测

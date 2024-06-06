@@ -167,7 +167,7 @@ class Discriminator(nn.Module):
         self.batch_size = batch_size
         ratio = img_size / 256.
         super(Discriminator, self).__init__()
-        self.conv_in = nn.Sequential(Disconv(2, 8,),
+        self.conv_in = nn.Sequential(Disconv(2, 8, ),
                                      Disconv(8, 16, 3, 2),  # 128
                                      )
         self.conv1 = nn.Sequential(Disconv(16, 32, 3, 2),  # 64
@@ -181,13 +181,18 @@ class Discriminator(nn.Module):
 
         self.flat = nn.Flatten()
 
-        self.liner = nn.Sequential(nn.Linear(math.ceil(16 * ratio)**2, 16 * 16),
+        self.liner = nn.Sequential(nn.Linear(math.ceil(16 * ratio) ** 2, 16 * 16),
                                    nn.LeakyReLU(),
                                    nn.Linear(16 * 16, 8 * 16),
                                    nn.LeakyReLU(),
                                    nn.Linear(8 * 16, 8 * 8),
                                    nn.LeakyReLU(),
-                                   nn.Linear(8 * 8, batch_size))
+                                   nn.Linear(8 * 8, 4 * 8),
+                                   nn.LeakyReLU(),
+                                   nn.Linear(4 * 8, 8),
+                                   nn.LeakyReLU(),
+                                   nn.Linear(8, 1),
+                                   nn.BatchNorm1d(1))
 
         self.act = nn.Sigmoid()
 
