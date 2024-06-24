@@ -4,6 +4,7 @@
 /venv/*
 models/__pycache__/8
 /*/__pycache__
-datasets/__pycache__/*
-models/__pycache__/*
-utils/__pycache__/*
+/datasets/__pycache__/*
+/models/__pycache__/*
+/utils/__pycache__/*
+/utils/__pycache__/*

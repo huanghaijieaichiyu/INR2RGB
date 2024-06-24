@@ -14,6 +14,12 @@
 !mkdir images
 !cd images
 
+## The form of your datasets:
+for example
+/datasets' name 
+   // train   # This is required
+    /// your train images  # Just need RGB form
+
 !wget -c http://images.cocodataset.org/zips/train2017.zip
 !wget -c http://images.cocodataset.org/zips/val2017.zip
 !wget -c http://images.cocodataset.org/zips/test2017.zip
