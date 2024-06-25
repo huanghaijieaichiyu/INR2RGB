@@ -107,15 +107,18 @@ class Generator(nn.Module):
         self.conv5 = nn.Sequential(SPPELAN(math.ceil(512 * depth), math.ceil(512 * depth), math.ceil(256 * depth)),
                                    Gencov(math.ceil(512 * depth), math.ceil(256 * depth), math.ceil(3 * weight)))
         self.conv6 = nn.Sequential(
-            Gencov(math.ceil(768 * depth), math.ceil(256 * depth), math.ceil(3 * weight)),
-            C2f(math.ceil(256 * depth), math.ceil(128 * depth), math.ceil(weight), shortcut=True),
+            Gencov(math.ceil(768 * depth),
+                   math.ceil(256 * depth), math.ceil(3 * weight)),
+            C2f(math.ceil(256 * depth), math.ceil(128 * depth),
+                math.ceil(weight), shortcut=True),
             nn.Upsample(
                 scale_factor=2, mode='bilinear', align_corners=True),
             Gencov(math.ceil(128 * depth),
                    math.ceil(64 * depth), 3)
         )
         self.conv7 = nn.Sequential(
-            C2f(math.ceil(192 * depth), math.ceil(96 * depth), math.ceil(weight), shortcut=False),
+            C2f(math.ceil(192 * depth), math.ceil(96 * depth),
+                math.ceil(weight), shortcut=False),
             nn.Upsample(
                 scale_factor=2, mode='bilinear', align_corners=True),
             Gencov(math.ceil(96 * depth),

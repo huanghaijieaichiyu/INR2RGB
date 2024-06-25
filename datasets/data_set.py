@@ -1,3 +1,5 @@
+import os.path
+import sys
 from pathlib import Path
 
 import cv2
@@ -25,7 +27,7 @@ def get_images_and_labels(dir_path):
         class_path = dir_path / name
         if not class_path.is_dir():
             continue
-        for img_path in class_path.glob('*.jpg'):
+        for img_path in class_path.glob('*.png') if sys.getsizeof(class_path.glob('*.png'))>0 else class_path.glob('*.jpg'):
             images_list.append(str(img_path))
             labels_list.append(int(index))
     return images_list, labels_list
