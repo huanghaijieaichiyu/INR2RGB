@@ -186,16 +186,20 @@ class Discriminator(nn.Module):
 
         self.liner = nn.Sequential(nn.Linear(math.ceil(16 * ratio) ** 2, 16 * 16),
                                    nn.LeakyReLU(),
+                                   nn.BatchNorm1d(16 * 16),
                                    nn.Linear(16 * 16, 8 * 16),
                                    nn.LeakyReLU(),
+                                   nn.BatchNorm1d(8 * 16),
                                    nn.Linear(8 * 16, 8 * 8),
                                    nn.LeakyReLU(),
+                                   nn.BatchNorm1d(8 * 8),
                                    nn.Linear(8 * 8, 4 * 8),
                                    nn.LeakyReLU(),
+                                   nn.BatchNorm1d(4 * 8),
                                    nn.Linear(4 * 8, 8),
                                    nn.LeakyReLU(),
-                                   nn.Linear(8, 1),
-                                   nn.BatchNorm1d(1))
+                                   nn.BatchNorm1d(8),
+                                   nn.Linear(8, 1))
 
         self.act = nn.Sigmoid()
 

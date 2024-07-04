@@ -27,10 +27,17 @@ def get_images_and_labels(dir_path):
         class_path = dir_path / name
         if not class_path.is_dir():
             continue
-        for img_path in class_path.glob('*.png') if sys.getsizeof(class_path.glob('*.png')) > 0 else class_path.glob(
-                '*.jpg'):
-            images_list.append(str(img_path))
-            labels_list.append(int(index))
+        if sys.getsizeof(class_path.glob('*.jpg')) > 0:
+            for img_path in class_path.glob('*.jpg'):
+                images_list.append(str(img_path))
+                labels_list.append(int(index))
+        elif sys.getsizeof(class_path.glob('*.png')) > 0:
+            for img_path in class_path.glob('*.png'):
+                images_list.append(str(img_path))
+                labels_list.append(int(index))
+        else:
+            print("The datasets' images must be .jpg or .png file.")
+            sys.exit()
     return images_list, labels_list
 
 

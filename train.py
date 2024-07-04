@@ -14,12 +14,11 @@ from torch.cuda.amp import autocast
 from torch.optim.lr_scheduler import LambdaLR
 from torch.utils import tensorboard
 from torch.utils.data import DataLoader
-from torchvision import transforms
 from tqdm import tqdm
 from rich import print
 
 from datasets.data_set import MyDataset
-from models.base_mode import Generator, Discriminator, Generator_lite
+from models.base_mode import Generator, Discriminator
 from utils.color_trans import PSlab2rgb, PSrgb2lab
 from utils.loss import BCEBlurWithLogitsLoss, FocalLoss
 from utils.model_map import model_structure
@@ -362,13 +361,13 @@ def train(self):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()  # 命令行选项、参数和子命令解析器
     parser.add_argument("--data", type=str,
-                        default='../datasets/KITTI/train', help="path to dataset")
-    parser.add_argument("--epochs", type=int, default=500,
+                        default='../datasets/coco300/train', help="path to dataset")
+    parser.add_argument("--epochs", type=int, default=1000,
                         help="number of epochs of training")  # 迭代次数
-    parser.add_argument("--batch_size", type=int, default=8,
+    parser.add_argument("--batch_size", type=int, default=16,
                         help="size of the batches")  # batch大小
     parser.add_argument("--img_size", type=tuple,
-                        default=(512, 512), help="size of the image")
+                        default=(256, 256), help="size of the image")
     parser.add_argument("--optimizer", type=str, default='Adam',
                         choices=['AdamW', 'SGD', 'Adam', 'lion', 'rmp'])
     parser.add_argument("--num_workers", type=int, default=10,
@@ -376,8 +375,7 @@ if __name__ == '__main__':
                         )
     parser.add_argument("--seed", type=int, default=1999, help="random seed")
     parser.add_argument("--resume", type=tuple,
-                        default=[''], help="path to two latest "
-                                           "checkpoint,yes or no")
+                        default=['runs/train(1)/generator/last.pt'], help="path to two latest checkpoint.")
     parser.add_argument("--amp", type=bool, default=True,
                         help="Whether to use amp in mixed precision")
     parser.add_argument("--cuDNN", type=bool, default=True,
@@ -390,7 +388,7 @@ if __name__ == '__main__':
                         help="learning rate, for adam is 1-e3, SGD is 1-e2")  # 学习率
     parser.add_argument("--momentum", type=float, default=0.5,
                         help="momentum for adam and SGD")
-    parser.add_argument("--depth", type=float, default=0.5,
+    parser.add_argument("--depth", type=float, default=1,
                         help="depth of the generator")
     parser.add_argument("--weight", type=float, default=1,
                         help="weight of the generator")
