@@ -8,3 +8,4 @@ models/__pycache__/8
 /models/__pycache__/*
 /utils/__pycache__/*
 /utils/__pycache__/*!/.conda/
+/runs/
