@@ -236,8 +236,8 @@ def train(self):
                 fake = generator(gray)
                 fake_inputs = discriminator(fake.detach())
                 real_outputs = discriminator(color / lamb)
-                real_lable = torch.ones_like(fake_inputs)
-                fake_lable = torch.zeros_like(fake_inputs)
+                real_lable = nn.Parameter(torch.ones_like(fake_inputs))
+                fake_lable = nn.Parameter(torch.zeros_like(fake_inputs))
                 # D 希望 real_loss 为 1
                 d_real_output = loss(real_outputs, real_lable)
                 d_real_output.backward()
