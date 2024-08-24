@@ -207,10 +207,10 @@ def train(self):
         if self.resume != ['']:
             g_path_checkpoint = self.resume[0]
             g_checkpoint = torch.load(g_path_checkpoint)  # 加载断点
-            generator.load_state_dict(g_checkpoint['net'], strict=False)
-            g_optimizer.load_state_dict(g_checkpoint['optimizer'], strict=False)
+            generator.load_state_dict(g_checkpoint['net'])
+            g_optimizer.load_state_dict(g_checkpoint['optimizer'])
             g_epoch = g_checkpoint['epoch']  # 设置开始的epoch
-            loss.load_state_dict(g_checkpoint['loss'], strict=False)
+            loss.load_state_dict = g_checkpoint['loss']
             epoch = g_epoch
             print('继续第：{}轮训练'.format(epoch + 1))
             self.resume = ['']  # 跳出循环
@@ -236,8 +236,8 @@ def train(self):
                 fake = generator(gray)
                 fake_inputs = discriminator(fake.detach())
                 real_outputs = discriminator(color / lamb)
-                real_lable = nn.Parameter(torch.ones_like(fake_inputs))
-                fake_lable = nn.Parameter(torch.zeros_like(fake_inputs))
+                real_lable = torch.ones_like(fake_inputs, requires_grad=False)
+                fake_lable = torch.zeros_like(fake_inputs, requires_grad=False)
                 # D 希望 real_loss 为 1
                 d_real_output = loss(real_outputs, real_lable)
                 d_real_output.backward()
@@ -274,7 +274,7 @@ def train(self):
                 pbar.set_description('Epoch: [%d/%d]\t Batch: [%d/%d]\t Loss_D: %.4f\t Loss_G: %.4f\t D(x): %.4f\t D(G('
                                      'z)): %.4f / %.4f\t PSN: %.4f\t learning ratio: %.4f'
                                      % (epoch + 1, self.epochs, target + 1, len(train_loader),
-                                        d_output, g_output.item(), d_x, d_g_z1, d_g_z2, psn.item(),
+                                        d_output, g_output.item(), d_x, d_g_z1, d_g_z2, psn,
                                         g_optimizer.state_dict()['param_groups'][0]['lr']))
         # 判断模型是否提前终止
         if torch.eq(fake_tensor, torch.zeros_like(fake_tensor)).all():
@@ -361,10 +361,10 @@ def train(self):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()  # 命令行选项、参数和子命令解析器
     parser.add_argument("--data", type=str,
-                        default='../datasets/coco5000', help="path to dataset")
+                        default='../datasets/coco300/train', help="path to dataset")
     parser.add_argument("--epochs", type=int, default=1000,
                         help="number of epochs of training")  # 迭代次数
-    parser.add_argument("--batch_size", type=int, default=8,
+    parser.add_argument("--batch_size", type=int, default=16,
                         help="size of the batches")  # batch大小
     parser.add_argument("--img_size", type=tuple,
                         default=(256, 256), help="size of the image")
@@ -380,7 +380,7 @@ if __name__ == '__main__':
                         help="Whether to use amp in mixed precision")
     parser.add_argument("--cuDNN", type=bool, default=True,
                         help="Wether use cuDNN to celerate your program")
-    parser.add_argument("--loss", type=str, default='BCEBlurWithLogitsLoss',
+    parser.add_argument("--loss", type=str, default='bce',
                         choices=['BCEBlurWithLogitsLoss', 'mse', 'bce',
                                  'FocalLoss', 'wgb'],
                         help="loss function")
@@ -394,7 +394,7 @@ if __name__ == '__main__':
                         help="weight of the generator")
     parser.add_argument("--model", type=str, default="train",
                         help="train or test model")
-    parser.add_argument("--b1", type=float, default=0.5,
+    parser.add_argument("--b1", type=float, default=0.9,
                         help="adam: decay of first order momentum of gradient")  # 动量梯度下降第一个参数
     parser.add_argument("--b2", type=float, default=0.999,
                         help="adam: decay of first order momentum of gradient")  # 动量梯度下降第二个参数

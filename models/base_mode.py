@@ -2,8 +2,7 @@ import math
 
 import torch.nn as nn
 
-from models.common import SPPF, Conv, C2f, SPPELAN, Concat, Disconv, Gencov, Conv_trans, EMA, DNConv, C2fCIB, PSA, \
-    LSKblock, SCDown
+from models.common import SPPF, Conv, C2f, SPPELAN, Concat, Disconv, Gencov, Conv_trans, EMA,  C2fCIB, PSA, SCDown
 from utils.model_map import model_structure
 
 
@@ -189,58 +188,6 @@ class Discriminator(nn.Module):
         """
         x = self.act(self.liner(self.flat(self.conv_out(self.conv1(self.conv_in(x)))))).view(
             self.batch_size if x.shape[0] == self.batch_size else x.shape[0], -1)
-
-        return x
-
-
-class Generator_lite(nn.Module):
-
-    def __init__(self, depth=0.8, weight=1) -> None:
-        super(Generator_lite, self).__init__()
-        depth = depth
-        weight = weight
-        self.conv1 = Gencov(1, math.ceil(8 * depth))
-        self.conv2 = DNConv(math.ceil(8 * depth), math.ceil(32 * depth), math.ceil(3 * weight), 2),
-        self.conv3 = DNConv(math.ceil(32 * depth), math.ceil(128 * depth), math.ceil(3 * weight), 2),
-        self.conv4 = nn.Sequential(DNConv(math.ceil(128 * depth), math.ceil(512 * depth), math.ceil(3 * weight), 2),
-                                   C2f(math.ceil(512 * depth), math.ceil(1024 * depth), math.ceil(3 * weight)))
-        self.conv5 = nn.Sequential(SPPELAN(math.ceil(1024 * depth), math.ceil(1024 * depth), math.ceil(512 * depth)),
-                                   PSA(math.ceil(1024 * depth), math.ceil(1024 * depth)),
-                                   Gencov(math.ceil(1024 * depth), math.ceil(256 * depth), math.ceil(3 * weight)),
-                                   LSKblock(math.ceil(256 * depth)))
-        self.conv6 = nn.Sequential(Gencov(math.ceil(256 * depth), math.ceil(128 * depth), math.ceil(5 * weight)),
-                                   nn.Upsample(scale_factor=2),
-                                   Gencov(math.ceil(128 * depth), math.ceil(64 * depth), math.ceil(3 * weight)))
-        self.conv7 = nn.Sequential(Gencov(math.ceil(192 * depth), math.ceil(96 * depth), math.ceil(5 * weight)),
-                                   nn.Upsample(scale_factor=2),
-                                   Gencov(math.ceil(96 * depth), math.ceil(64 * depth), math.ceil(3 * weight)))
-        self.conv8 = nn.Sequential(nn.Upsample(scale_factor=2),
-                                   C2fCIB(math.ceil(64 * depth), math.ceil(128 * depth)))
-        self.conv9 = Gencov(math.ceil(128 * depth), math.ceil(64 * depth), math.ceil(3 * weight))
-        self.conv10 = nn.Sequential(Gencov(math.ceil(64 * depth), math.ceil(8 * depth), math.ceil(3 * weight)),
-                                    LSKblock(math.ceil(8 * depth)),
-                                    Gencov(math.ceil(8 * depth), 2, math.ceil(3 * weight), act=False, bn=False))
-        self.tanh = nn.Tanh()
-        self.concat = Concat()
-
-    def forward(self, x):
-        # head net
-        x1 = self.conv1(x)
-        x2 = self.conv2(x1)
-        x3 = self.conv3(x2)
-        x4 = self.conv4(x3)
-        x5 = self.conv5(x4)
-        x6 = self.conv6(x5)
-
-        # neck net
-
-        x7 = self.conv7(self.concat([x6, x3]))
-        x8 = self.conv8(x7)
-        x10 = self.conv9(x8)
-        x11 = self.conv10(x10)
-        x12 = self.tanh(x11)
-
-        x = x12.view(-1, 2, x.shape[2], x.shape[3])
 
         return x
 
