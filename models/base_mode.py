@@ -3,7 +3,7 @@ import math
 import torch.nn as nn
 
 from models.common import SPPF, Conv, C2f, SPPELAN, Concat, Disconv, Gencov, Conv_trans, EMA,  C2fCIB, PSA, SCDown
-from utils.model_map import model_structure
+from utils.misic import model_structure
 
 
 class Convert(nn.Module):
