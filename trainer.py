@@ -6,10 +6,7 @@ import numpy as np
 import torch
 from torcheval.metrics.functional import peak_signal_noise_ratio
 
-from utils.misic import learning_rate_scheduler, set_random_seed, get_opt, get_loss
-from utils.ssim import ssim
-from timm.optim import Lion, RMSpropTF
-from torch import nn
+from utils.misic import learning_rate_scheduler, set_random_seed, get_opt, get_loss, ssim, model_structure, save_path
 from torch.backends import cudnn
 from torch.cuda.amp import autocast
 
@@ -21,13 +18,8 @@ from rich import print
 from datasets.data_set import MyDataset
 from models.base_mode import Generator, Discriminator
 from utils.color_trans import PSlab2rgb, PSrgb2lab
-from utils.loss import BCEBlurWithLogitsLoss, FocalLoss
-from utils.model_map import model_structure
-from utils.save_path import save_path
 
 
-# 初始化随机种子
-@set_random_seed
 def train(self):
     # 避免同名覆盖
     path = save_path(self.save_path)
