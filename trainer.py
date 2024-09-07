@@ -22,9 +22,12 @@ from utils.color_trans import PSlab2rgb, PSrgb2lab
 
 def train(self):
     # 避免同名覆盖
-    path = save_path(self.save_path)
-    os.makedirs(os.path.join(path, 'generator'))
-    os.makedirs(os.path.join(path, 'discriminator'))
+    if self.resume != ['']:
+        path = os.path.dirname(os.path.dirname(self.resume[0]))
+    else:
+        path = save_path(self.save_path)
+        os.makedirs(os.path.join(path, 'generator'))
+        os.makedirs(os.path.join(path, 'discriminator'))
     # 创建训练日志文件
     train_log = path + '/log.txt'
     train_log_txt_formatter = (
@@ -112,9 +115,10 @@ def train(self):
     # 开始训练
     discriminator.train()
     generator.train()
-    for epoch in range(self.epochs):
+    epoch = 0
+    while epoch < self.epochs:
         # 参数储存
-        PSN = [0.]
+        Ssim = [0.]
         source_g = [0.]
         fake_tensor = torch.zeros(
             (self.batch_size, 3, self.img_size[0], self.img_size[1]))
@@ -184,7 +188,7 @@ def train(self):
                 '''--------------- 训练生成器 ----------------'''
                 fake_inputs = discriminator(fake)
                 # G 希望 fake 为 1 加上 psn及 ssim相似损失
-                g_output = loss(fake_inputs, real_lable) + (100 - psn) * 0.01
+                g_output = (loss(fake_inputs, real_lable) + loss((100 - psn) * 0.01, torch.ones_like(psn))) * 0.5
                 g_output.backward()
                 d_g_z2 = fake_inputs.mean().item()
                 torch.nn.utils.clip_grad_norm_(generator.parameters(), 20)
@@ -193,19 +197,38 @@ def train(self):
             gen_loss.append(g_output.item())
             dis_loss.append(d_output)
 
-            PSN.append(psn)
             source_g.append(d_g_z2)
             pbar.set_description('||Epoch: [%d/%d]|--|--|Batch: [%d/%d]|--|--|Loss_D: %.4f|--|--|Loss_G: '
                                  '%.4f|--|--|D(x): %.4f|--|--|D(G(z)): %.4f / %.4f|'
                                  % (epoch + 1, self.epochs, target + 1, len(train_loader),
                                     d_output, g_output.item(), d_x, d_g_z1, d_g_z2))
 
-            # eval model
-            if epoch % 50 == 0 & epoch > 50:
-                generator.eval()
-                ssim_source = ssim(fake_tensor, img)
-                print("Model SSIM : %.4f", ssim_source)
-                generator.train()
+            g_checkpoint = {
+                'net': generator.state_dict(),
+                'optimizer': g_optimizer.state_dict(),
+                'epoch': epoch,
+                'loss': loss.state_dict() if loss is not None else None
+            }
+            d_checkpoint = {
+                'net': discriminator.state_dict(),
+                'optimizer': d_optimizer.state_dict(),
+                'epoch': epoch,
+                'loss': loss.state_dict() if loss is not None else None
+            }
+            torch.save(g_checkpoint, path + '/generator/last.pt')
+            torch.save(d_checkpoint, path + '/discriminator/last.pt')
+        # eval model
+        if (epoch+1) % 50 == 0 & (epoch+1) >= 50:
+            print("Evaling the generator model")
+            generator.eval()
+            ssim_source = ssim(fake_tensor, img)
+            if ssim_source > max(Ssim):
+                torch.save(g_checkpoint, path + '/generator/best.pt')
+                torch.save(d_checkpoint, path + '/discriminator/best.pt')
+            Ssim.append(ssim_source)
+            print("Model SSIM : %.4f", ssim_source)
+            generator.train()
+
         # 判断模型是否提前终止
         if torch.eq(fake_tensor, torch.zeros_like(fake_tensor)).all():
             print('fake tensor is zero!')
@@ -226,33 +249,7 @@ def train(self):
             assert LR_G is not None, 'no such lr deduce'
             LR_D.step()
             LR_G.step()
-        g_checkpoint = {
-            'net': generator.state_dict(),
-            'optimizer': g_optimizer.state_dict(),
-            'epoch': epoch,
-            'loss': loss.state_dict() if loss is not None else None
-        }
-        d_checkpoint = {
-            'net': discriminator.state_dict(),
-            'optimizer': d_optimizer.state_dict(),
-            'epoch': epoch,
-            'loss': loss.state_dict() if loss is not None else None
-        }
-        # 保持最佳模型
-        assert d_g_z2 != 0, 'd_g_z2 is zero!'
-        if d_g_z2 < min(source_g):
-            torch.save(d_checkpoint, path + '/discriminator/best_source.pt')
-        if np.mean(g_output.item()) < min(loss_all):
-            torch.save(g_checkpoint, path + '/generator/best.pt')
-        loss_all.append(np.mean(g_output.item()))
 
-        if psn > max(PSN):
-            torch.save(g_checkpoint, path + '/generator/best_PSN.pt')
-            torch.save(d_checkpoint, path + '/discriminator/best_PSN.pt')
-        # 保持最后一个模型
-        # 保持训练权重
-        torch.save(g_checkpoint, path + '/generator/last.pt')
-        torch.save(d_checkpoint, path + '/discriminator/last.pt')
 
         # 写入日志文件
         to_write = train_log_txt_formatter.format(time_str=time.strftime("%Y_%m_%d_%H:%M:%S"),
@@ -267,22 +264,19 @@ def train(self):
                                                       ["{:4f}".format(d_g_z1)]),
                                                   Dgz1_str=" ".join(
                                                       ["{:4f}".format(d_g_z2)]),
-                                                  PSN_str=" ".join(["{:4f}".format(np.mean(PSN))]))
+                                                  PSN_str=" ".join(["{:4f}".format(np.mean(Ssim))]))
         with open(train_log, "a") as f:
             f.write(to_write)
-
-            # 5 epochs for saving another model
-        if (epoch + 1) % 50 == 0 and (epoch + 1) >= 50:
-            torch.save(g_checkpoint, path + '/generator/%d.pt' % (epoch + 1))
         # 可视化训练结果
 
         log.add_scalar('generation loss', np.mean(gen_loss), epoch + 1)
         log.add_scalar('discrimination loss', np.mean(dis_loss), epoch + 1)
-        log.add_scalar('PSN', np.mean(PSN), epoch + 1)
+        log.add_scalar('PSN', np.mean(Ssim), epoch + 1)
         log.add_scalar('learning rate', g_optimizer.state_dict()
         ['param_groups'][0]['lr'], epoch + 1)
 
         log.add_images('real', img, epoch + 1)
         log.add_images('fake', fake_img, epoch + 1)
-    pbar.close()
+        epoch += 1
+        pbar.close()
     log.close()
