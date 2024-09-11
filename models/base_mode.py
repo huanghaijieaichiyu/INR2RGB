@@ -6,85 +6,6 @@ from models.common import SPPF, Conv, C2f, SPPELAN, Concat, Disconv, Gencov, Con
 from utils.misic import model_structure
 
 
-class Convert(nn.Module):
-
-    def __init__(self, depth=1, weight=1) -> None:
-        super(Convert, self).__init__()
-        depth = depth
-        weight = weight
-        self.conv1 = Conv(1, math.ceil(8 * depth))
-        self.conv2 = nn.Sequential(Conv(math.ceil(8 * depth), math.ceil(16 * depth), math.ceil(3 * weight), 2),  # 128
-                                   C2f(math.ceil(16 * depth), math.ceil(32 * \
-                                                                        depth), math.ceil(weight), shortcut=True)
-                                   )
-        self.conv3 = nn.Sequential(Conv(math.ceil(32 * depth), math.ceil(64 * depth), math.ceil(3 * weight), 2),  # 64
-                                   C2f(math.ceil(64 * depth), math.ceil(128 * \
-                                                                        depth), math.ceil(weight), shortcut=True)
-                                   )
-        self.conv4 = nn.Sequential(Conv(math.ceil(128 * depth), math.ceil(256 * depth), math.ceil(3 * weight), 2),  # 32
-                                   C2f(math.ceil(256 * depth), math.ceil(512 * depth), math.ceil(weight),
-                                       shortcut=True))
-        self.conv5 = nn.Sequential(Conv(math.ceil(512 * depth), math.ceil(1024 * depth), math.ceil(3 * weight), 2),
-                                   # 16
-                                   Conv(
-                                       math.ceil(1024 * depth), math.ceil(512 * depth), math.ceil(3 * weight))
-                                   )
-        self.conv6 = nn.Sequential(SPPELAN(math.ceil(512 * depth), math.ceil(512 * depth), math.ceil(256 * depth)),
-                                   Conv(math.ceil(512 * depth), math.ceil(256 * depth), math.ceil(3 * weight)))
-        self.conv7 = nn.Sequential(
-            C2f(math.ceil(256 * depth), math.ceil(128 * depth),
-                math.ceil(weight), shortcut=False),
-            nn.Upsample(scale_factor=2),  # 32
-            Conv(math.ceil(128 * depth), math.ceil(64 * depth)))
-        self.conv8 = nn.Sequential(
-            C2f(math.ceil(576 * depth), math.ceil(256 * depth),
-                math.ceil(weight), shortcut=True),
-            nn.Upsample(scale_factor=2),  # 64
-            Conv(math.ceil(256 * depth),
-                 math.ceil(128 * depth), math.ceil(3 * weight)),
-            C2f(math.ceil(128 * depth), math.ceil(64 * depth), math.ceil(weight), shortcut=False))
-        self.conv9 = nn.Sequential(C2f(math.ceil(64 * depth), math.ceil(64 * depth), math.ceil(weight), shortcut=True),
-                                   nn.Upsample(scale_factor=2),  # 128
-                                   Conv(math.ceil(64 * depth),
-                                        math.ceil(128 * depth))
-                                   )
-        self.conv10 = nn.Sequential(
-            C2f(math.ceil(128 * depth), math.ceil(64 * depth),
-                math.ceil(weight), shortcut=False),
-            nn.Upsample(scale_factor=2),  # 256
-            Conv(math.ceil(64 * depth), math.ceil(32 * depth))
-        )
-        self.conv11 = nn.Sequential(
-            C2f(math.ceil(32 * depth), math.ceil(16 * depth),
-                math.ceil(weight), shortcut=False),
-            Conv(math.ceil(16 * depth), math.ceil(8 * depth)),
-            Conv(math.ceil(8 * depth), 2, math.ceil(3 * weight), act=False)
-        )
-        self.tanh = nn.Tanh()
-        self.concat = Concat()
-
-    def forward(self, x):
-        # head net
-        x1 = self.conv1(x)
-        x2 = self.conv2(x1)
-        x3 = self.conv3(x2)
-        x4 = self.conv4(x3)
-        x5 = self.conv5(x4)
-        x6 = self.conv6(x5)
-        x7 = self.conv7(x6)
-        # neck net
-
-        x8 = self.conv8(self.concat([x7, x4]))
-        x9 = self.conv9(x8)
-        x10 = self.conv10(x9)
-        x11 = self.conv11(x10)
-        x12 = self.tanh(x11)
-
-        x = x12.view(-1, 2, x.shape[2], x.shape[3])
-
-        return x
-
-
 class Generator(nn.Module):
 
     def __init__(self, depth=0.8, weight=1) -> None:
@@ -110,7 +31,7 @@ class Generator(nn.Module):
             nn.Upsample(scale_factor=2, mode='bilinear', align_corners=True)
         )
         self.conv8 = nn.Sequential(
-            C2fCIB(math.ceil(64 * depth), math.ceil(32 * depth)),
+            C2fCIB(math.ceil(96 * depth), math.ceil(32 * depth)),
             nn.Upsample(scale_factor=2, mode='bilinear', align_corners=True),
         )
 
@@ -130,7 +51,7 @@ class Generator(nn.Module):
         # neck net
 
         x7 = self.conv7(self.concat([x6, x3]))
-        x8 = self.conv8(x7)
+        x8 = self.conv8(self.concat([x2, x7]))
         x9 = self.tanh(self.conv9(x8))
 
         return x9.view(-1, 2, x.shape[2], x.shape[3])

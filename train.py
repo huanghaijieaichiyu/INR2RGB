@@ -19,8 +19,8 @@ def args():
                         help="number of data loading workers, if in windows, must be 0"
                         )
     parser.add_argument("--seed", type=int, default=1999, help="random seed")
-    parser.add_argument("--resume", type=tuple,
-                        default=['runs/train(3)/generator/last.pt'], help="path to two latest checkpoint.")
+    parser.add_argument("--resume", type=str,
+                        default='', help="path to two latest checkpoint.")
     parser.add_argument("--amp", type=bool, default=True,
                         help="Whether to use amp in mixed precision")
     parser.add_argument("--cuDNN", type=bool, default=True,

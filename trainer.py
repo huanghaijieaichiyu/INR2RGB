@@ -22,8 +22,8 @@ from utils.color_trans import PSlab2rgb, PSrgb2lab
 
 def train(self):
     # 避免同名覆盖
-    if self.resume != ['']:
-        path = os.path.dirname(os.path.dirname(self.resume[0]))
+    if self.resume != '':
+        path = os.path.dirname(os.path.dirname(self.resume))
     else:
         path = save_path(self.save_path)
         os.makedirs(os.path.join(path, 'generator'))
@@ -130,8 +130,8 @@ def train(self):
         gen_loss = []
         dis_loss = []
         # 断点训练参数设置
-        if self.resume != ['']:
-            g_path_checkpoint = self.resume[0]
+        if self.resume != '':
+            g_path_checkpoint = self.resume
             g_checkpoint = torch.load(g_path_checkpoint)  # 加载断点
             generator.load_state_dict(g_checkpoint['net'])
             g_optimizer.load_state_dict(g_checkpoint['optimizer'])
@@ -139,7 +139,7 @@ def train(self):
             loss.load_state_dict = g_checkpoint['loss']
             epoch = g_epoch
             print('继续第：{}轮训练'.format(epoch + 1))
-            self.resume = ['']  # 跳出循环
+            self.resume = ''  # 跳出循环
         print('第{}轮训练'.format(epoch + 1))
         pbar = tqdm(enumerate(train_loader), total=len(train_loader),
                     bar_format='{l_bar}{bar:10}| {n_fmt}/{total_fmt} {elapsed}', colour='#8762A5')
@@ -191,7 +191,8 @@ def train(self):
                 g_output = (loss(fake_inputs, real_lable) + loss((100 - psn) * 0.01, torch.ones_like(psn))) * 0.5
                 g_output.backward()
                 d_g_z2 = fake_inputs.mean().item()
-                torch.nn.utils.clip_grad_norm_(generator.parameters(), 20)
+                torch.nn.utils.clip_grad_norm_(generator.parameters(), 5)
+                torch.nn.utils.clip_grad_norm_(discriminator.parameters(), 10)
                 g_optimizer.step()
 
             gen_loss.append(g_output.item())
@@ -218,16 +219,14 @@ def train(self):
             torch.save(g_checkpoint, path + '/generator/last.pt')
             torch.save(d_checkpoint, path + '/discriminator/last.pt')
         # eval model
-        if (epoch+1) % 50 == 0 & (epoch+1) >= 50:
+        if (epoch + 1) % 50 == 0 and (epoch + 1) >= 50:
             print("Evaling the generator model")
-            generator.eval()
             ssim_source = ssim(fake_tensor, img)
             if ssim_source > max(Ssim):
                 torch.save(g_checkpoint, path + '/generator/best.pt')
                 torch.save(d_checkpoint, path + '/discriminator/best.pt')
             Ssim.append(ssim_source)
             print("Model SSIM : %.4f", ssim_source)
-            generator.train()
 
         # 判断模型是否提前终止
         if torch.eq(fake_tensor, torch.zeros_like(fake_tensor)).all():
@@ -249,7 +248,6 @@ def train(self):
             assert LR_G is not None, 'no such lr deduce'
             LR_D.step()
             LR_G.step()
-
 
         # 写入日志文件
         to_write = train_log_txt_formatter.format(time_str=time.strftime("%Y_%m_%d_%H:%M:%S"),
