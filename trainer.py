@@ -219,14 +219,14 @@ def train(self):
             torch.save(g_checkpoint, path + '/generator/last.pt')
             torch.save(d_checkpoint, path + '/discriminator/last.pt')
         # eval model
-        if (epoch + 1) % 50 == 0 and (epoch + 1) >= 50:
-            print("Evaling the generator model")
+        if (epoch + 1) % 10 == 0 and (epoch + 1) >= 10:
+            print("Evaluating the generator model")
             ssim_source = ssim(fake_tensor, img)
-            if ssim_source > max(Ssim):
+            if ssim_source.item() > max(Ssim):
                 torch.save(g_checkpoint, path + '/generator/best.pt')
                 torch.save(d_checkpoint, path + '/discriminator/best.pt')
-            Ssim.append(ssim_source)
-            print("Model SSIM : %.4f", ssim_source)
+            Ssim.append(ssim_source.item())
+            print("Model SSIM : %.4f", ssim_source.item())
 
         # 判断模型是否提前终止
         if torch.eq(fake_tensor, torch.zeros_like(fake_tensor)).all():
@@ -270,7 +270,7 @@ def train(self):
         log.add_scalar('generation loss', np.mean(gen_loss), epoch + 1)
         log.add_scalar('discrimination loss', np.mean(dis_loss), epoch + 1)
         log.add_scalar('learning rate', g_optimizer.state_dict()['param_groups'][0]['lr'], epoch + 1)
-
+        log.add_scalar('SSIM', np.mean(Ssim), epoch + 1)
         log.add_images('real', img, epoch + 1)
         log.add_images('fake', fake_img, epoch + 1)
         epoch += 1
