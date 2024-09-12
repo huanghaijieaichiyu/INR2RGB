@@ -2,7 +2,7 @@ import math
 
 import torch.nn as nn
 
-from models.common import SPPF, Conv, C2f, SPPELAN, Concat, Disconv, Gencov, Conv_trans, EMA,  C2fCIB, PSA, SCDown
+from models.common import SPPF, Conv, C2f, SPPELAN, Concat, Disconv, Gencov, Conv_trans, EMA, C2fCIB, PSA, SCDown
 from utils.misic import model_structure
 
 
@@ -13,15 +13,24 @@ class Generator(nn.Module):
         depth = depth
         weight = weight
         self.conv1 = Gencov(1, math.ceil(8 * depth))
-        self.conv2 = SCDown(math.ceil(8 * depth), math.ceil(32 * depth), math.ceil(weight), 2)
+        self.conv2 = nn.Sequential(
+            Gencov(math.ceil(8 * depth), math.ceil(16 * depth), math.ceil(weight), 2),
+            C2f(math.ceil(16 * depth), math.ceil(32 * depth), 1, True)
+        )
 
-        self.conv3 = SCDown(math.ceil(32 * depth), math.ceil(128 * depth), math.ceil(weight), 2)
+        self.conv3 = nn.Sequential(
+            Gencov(math.ceil(32 * depth), math.ceil(64 * depth), math.ceil(weight), 2),
+            C2f(math.ceil(64 * depth), math.ceil(128 * depth), 1, True)
+        )
 
-        self.conv4 = SCDown(math.ceil(128 * depth), math.ceil(512 * depth), math.ceil(weight), 2)
+        self.conv4 = nn.Sequential(
+            SCDown(math.ceil(128 * depth), math.ceil(256 * depth), math.ceil(weight), 2),
+            C2f(math.ceil(256 * depth), math.ceil(512 * depth), 1, True)
+        )
 
         self.conv5 = nn.Sequential(
-            PSA(math.ceil(512 * depth), math.ceil(512 * depth)),
             SPPELAN(math.ceil(512 * depth), math.ceil(512 * depth), math.ceil(256 * depth)),
+            PSA(math.ceil(512 * depth), math.ceil(512 * depth)),
             Gencov(math.ceil(512 * depth), math.ceil(256 * depth)), )
         self.conv6 = nn.Sequential(
             Gencov(math.ceil(768 * depth), math.ceil(64 * depth), math.ceil(3 * weight)),

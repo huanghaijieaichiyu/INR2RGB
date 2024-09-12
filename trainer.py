@@ -261,17 +261,15 @@ def train(self):
                                                   Dgz0_str=" ".join(
                                                       ["{:4f}".format(d_g_z1)]),
                                                   Dgz1_str=" ".join(
-                                                      ["{:4f}".format(d_g_z2)]),
-                                                  PSN_str=" ".join(["{:4f}".format(np.mean(Ssim))]))
+                                                      ["{:4f}".format(d_g_z2)])
+                                                  )
         with open(train_log, "a") as f:
             f.write(to_write)
         # 可视化训练结果
 
         log.add_scalar('generation loss', np.mean(gen_loss), epoch + 1)
         log.add_scalar('discrimination loss', np.mean(dis_loss), epoch + 1)
-        log.add_scalar('PSN', np.mean(Ssim), epoch + 1)
-        log.add_scalar('learning rate', g_optimizer.state_dict()
-        ['param_groups'][0]['lr'], epoch + 1)
+        log.add_scalar('learning rate', g_optimizer.state_dict()['param_groups'][0]['lr'], epoch + 1)
 
         log.add_images('real', img, epoch + 1)
         log.add_images('fake', fake_img, epoch + 1)
