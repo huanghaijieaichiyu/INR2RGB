@@ -15,37 +15,6 @@ from math import exp
 from utils.loss import BCEBlurWithLogitsLoss, FocalLoss
 
 
-def learning_rate_scheduler(self, g_optimizer, d_optimizer):
-    if self.lr_deduce == 'coslr':
-        LR_D = torch.optim.lr_scheduler.CosineAnnealingLR(
-            d_optimizer, self.epochs, 1e-6)
-        LR_G = torch.optim.lr_scheduler.CosineAnnealingLR(
-            g_optimizer, self.epochs, 1e-6)
-
-    if self.lr_deduce == 'llamb':
-        assert self.lr_deduce != 'coslr', 'do not using tow stagics at the same time!'
-
-        def lf(x): return (
-                (1 + math.cos(x * math.pi / self.epochs)) / 2) * (1 - 0.2) + 0.2
-
-        LR_G = LambdaLR(
-            g_optimizer, lr_lambda=lf, last_epoch=-1, verbose=False)
-        LR_D = LambdaLR(d_optimizer, lr_lambda=lf,
-                        last_epoch=-1, verbose=False)
-
-    if self.lr_deduce == 'reduceLR':
-        assert self.lr_deduce != 'coslr', 'do not using tow stagics at the same time!'
-        LR_D = torch.optim.lr_scheduler.ReduceLROnPlateau(
-            d_optimizer, 'min', factor=0.2, patience=10, verbose=False, threshold=1e-4, threshold_mode='rel',
-            cooldown=10, min_lr=1e-6, eps=1e-5)
-        LR_G = torch.optim.lr_scheduler.ReduceLROnPlateau(
-            g_optimizer, 'min', factor=0.2, patience=10, verbose=False, threshold=1e-4, threshold_mode='rel',
-            cooldown=10, min_lr=1e-6, eps=1e-5)
-    if self.lr_deduce == 'no':
-        pass
-
-    return LR_D, LR_G
-
 
 def set_random_seed(seed=10, deterministic=False, benchmark=False):
     random.seed(seed)
@@ -88,15 +57,15 @@ def get_opt(self, generator, discriminator):
     return d_optimizer, g_optimizer
 
 
-def get_loss(self):
+def get_loss(loss_name):
     # 损失函数
-    if self.loss == 'BCEBlurWithLogitsLoss':
+    if loss_name == 'BCEBlurWithLogitsLoss':
         loss = BCEBlurWithLogitsLoss()
-    elif self.loss == 'mse':
+    elif loss_name == 'mse':
         loss = nn.MSELoss()
-    elif self.loss == 'FocalLoss':
+    elif loss_name == 'FocalLoss':
         loss = FocalLoss(nn.BCEWithLogitsLoss())
-    elif self.loss == 'bce':
+    elif loss_name == 'bce':
         loss = nn.BCEWithLogitsLoss()
     else:
         print('no such Loss Function!')

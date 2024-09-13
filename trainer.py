@@ -4,9 +4,10 @@ import time
 import cv2
 import numpy as np
 import torch
+import torch.nn as nn
 from torcheval.metrics.functional import peak_signal_noise_ratio
 from torchvision import transforms
-from utils.misic import learning_rate_scheduler, set_random_seed, get_opt, get_loss, ssim, model_structure, save_path
+from utils.misic import set_random_seed, get_opt, get_loss, ssim, model_structure, save_path
 from torch.backends import cudnn
 from torch.cuda.amp import autocast
 
@@ -20,12 +21,12 @@ from models.base_mode import Generator, Discriminator
 from utils.color_trans import PSlab2rgb, PSrgb2lab
 
 
-def train(self):
+def train(args):
     # 避免同名覆盖
-    if self.resume != '':
-        path = os.path.dirname(os.path.dirname(self.resume))
+    if args.resume != '':
+        path = os.path.dirname(os.path.dirname(args.resume))
     else:
-        path = save_path(self.save_path)
+        path = save_path(args.save_path)
         os.makedirs(os.path.join(path, 'generator'))
         os.makedirs(os.path.join(path, 'discriminator'))
     # 创建训练日志文件
@@ -34,40 +35,40 @@ def train(self):
         '{time_str} \t [Epoch] \t {epoch:03d} \t [gLoss] \t {gloss_str} \t [dLoss] \t {dloss_str} \t {Dx_str} \t ['
         'Dgz0] \t {Dgz0_str} \t [Dgz1] \t {Dgz1_str}\n')
 
-    args_dict = self.__dict__
+    args_dict = args.__dict__
     print(args_dict)
 
     # 训练前数据准备
     device = torch.device('cpu')
-    if self.device == 'cuda':
+    if args.device == 'cuda':
         device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
 
-    log = tensorboard.SummaryWriter(log_dir=os.path.join(self.save_path, 'tensorboard'),
-                                    filename_suffix=str(self.epochs),
+    log = tensorboard.SummaryWriter(log_dir=os.path.join(args.save_path, 'tensorboard'),
+                                    filename_suffix=str(args.epochs),
                                     flush_secs=180)
-    set_random_seed(self.seed, deterministic=self.deterministic,
-                    benchmark=self.benchmark)
+    set_random_seed(args.seed, deterministic=args.deterministic,
+                    benchmark=args.benchmark)
 
     # 选择模型参数
 
-    generator = Generator(self.depth, self.weight)
+    generator = Generator(args.depth, args.weight)
     discriminator = Discriminator(
-        batch_size=self.batch_size, img_size=self.img_size[0])
+        batch_size=args.batch_size, img_size=args.img_size[0])
 
-    if self.draw_model:
+    if args.draw_model:
         print('-' * 50)
         print('Drawing model graph to tensorboard, you can check it with:http://127.0.0.1:6006 in tensorboard '
-              '--logdir={}'.format(os.path.join(self.save_path, 'tensorboard')))
+              '--logdir={}'.format(os.path.join(args.save_path, 'tensorboard')))
         log.add_graph(generator, torch.randn(
-            self.batch_size, 1, self.img_size[0], self.img_size[1]))
+            args.batch_size, 1, args.img_size[0], args.img_size[1]))
         print('Drawing doe!')
         print('-' * 50)
     print('Generator model info: \n')
     g_params, g_macs = model_structure(
-        generator, img_size=(1, self.img_size[0], self.img_size[1]))
+        generator, img_size=(1, args.img_size[0], args.img_size[1]))
     print('Discriminator model info: \n')
     d_params, d_macs = model_structure(
-        discriminator, img_size=(2, self.img_size[0], self.img_size[1]))
+        discriminator, img_size=(2, args.img_size[0], args.img_size[1]))
     generator = generator.to(device)
     discriminator = discriminator.to(device)
     # 打印配置
@@ -87,29 +88,25 @@ def train(self):
     os.makedirs(path, exist_ok=True)
 
     # 加载数据集
-    train_data = MyDataset(self.data, img_size=self.img_size)
+    train_data = MyDataset(args.data, img_size=args.img_size)
 
     train_loader = DataLoader(train_data,
-                              batch_size=self.batch_size,
-                              num_workers=self.num_workers,
+                              batch_size=args.batch_size,
+                              num_workers=args.num_workers,
                               shuffle=True,
                               drop_last=True)
     assert len(train_loader) != 0, 'no data loaded'
 
-    d_optimizer, g_optimizer = get_opt(self, generator, discriminator)
+    d_optimizer, g_optimizer = get_opt(args, generator, discriminator)
 
-    # 学习率退火
-    if self.lr_deduce != 'no':
-        LR_D, LR_G = learning_rate_scheduler(self, d_optimizer, g_optimizer)
-
-    loss = get_loss(self)
-    loss = loss.to(device)
-    g_loss = loss
-    d_loss = loss
+    g_loss = get_loss(args.loss)
+    g_loss = g_loss.to(device)
+    d_loss = nn.SmoothL1Loss()
+    d_loss.to(device)
 
     # 此处开始训练
     # 使用cuDNN加速训练
-    if self.cuDNN:
+    if args.cuDNN:
         cudnn.enabled = True
         cudnn.benchmark = True
         cudnn.deterministic = True
@@ -118,12 +115,12 @@ def train(self):
     discriminator.train()
     generator.train()
     epoch = 0
-    while epoch < self.epochs:
+    while epoch < args.epochs:
         # 参数储存
         Ssim = [0.]
         source_g = [0.]
         fake_tensor = torch.zeros(
-            (self.batch_size, 3, self.img_size[0], self.img_size[1]))
+            (args.batch_size, 3, args.img_size[0], args.img_size[1]))
         d_g_z2 = 0.
         d_output = 0
         g_output = 0
@@ -131,16 +128,16 @@ def train(self):
         gen_loss = []
         dis_loss = []
         # 断点训练参数设置
-        if self.resume != '':
+        if args.resume != '':
             # Loading the generator's checkpoints
-            g_path_checkpoint = os.path.join(self.resume, 'generator')
+            g_path_checkpoint = os.path.join(args.resume, 'generator')
             g_checkpoint = torch.load(g_path_checkpoint)  # 加载断点
             generator.load_state_dict(g_checkpoint['net'])
             g_optimizer.load_state_dict(g_checkpoint['optimizer'])
             g_epoch = g_checkpoint['epoch']  # 设置开始的epoch
             g_loss.load_state_dict = g_checkpoint['loss']
 
-            d_path_checkpoint = os.path.join(self.resume, 'discriminator')
+            d_path_checkpoint = os.path.join(args.resume, 'discriminator')
             d_checkpoint = torch.load(d_path_checkpoint)  # 加载断点
             discriminator.load_state_dict(d_checkpoint['net'])
             d_optimizer.load_state_dict(d_checkpoint['optimizer'])
@@ -148,7 +145,7 @@ def train(self):
 
             epoch = g_epoch
             print('继续第：{}轮训练'.format(epoch + 1))
-            self.resume = ''  # 跳出循环
+            args.resume = ''  # 跳出循环
         print('第{}轮训练'.format(epoch + 1))
         pbar = tqdm(enumerate(train_loader), total=len(train_loader),
                     bar_format='{l_bar}{bar:10}| {n_fmt}/{total_fmt} {elapsed}', colour='#8762A5')
@@ -163,7 +160,7 @@ def train(self):
             gray = gray.to(device)
             color = color.to(device)
 
-            with autocast(enabled=self.amp):
+            with autocast(enabled=args.amp):
                 d_optimizer.zero_grad()
                 g_optimizer.zero_grad()
 
@@ -197,7 +194,8 @@ def train(self):
                 '''--------------- 训练生成器 ----------------'''
                 fake_inputs = discriminator(fake)
                 # G 希望 fake 为 1 加上 psn及 ssim相似损失
-                g_output = (g_loss(fake_inputs, real_lable) + g_loss((100 - psn) * 0.01, torch.ones_like(psn))) * 0.5
+                g_output = (g_loss(fake_inputs, real_lable) +
+                            g_loss((100 - psn) * 0.01, torch.ones_like(psn))) * 0.5
                 g_output.backward()
                 d_g_z2 = fake_inputs.mean().item()
                 torch.nn.utils.clip_grad_norm_(generator.parameters(), 5)
@@ -209,20 +207,20 @@ def train(self):
             source_g.append(d_g_z2)
             pbar.set_description('||Epoch: [%d/%d]|--|--|Batch: [%d/%d]|--|--|Loss_D: %.4f|--|--|Loss_G: '
                                  '%.4f|--|--|D(x): %.4f|--|--|D(G(z)): %.4f / %.4f|'
-                                 % (epoch + 1, self.epochs, target + 1, len(train_loader),
+                                 % (epoch + 1, args.epochs, target + 1, len(train_loader),
                                     d_output, g_output.item(), d_x, d_g_z1, d_g_z2))
 
             g_checkpoint = {
                 'net': generator.state_dict(),
                 'optimizer': g_optimizer.state_dict(),
                 'epoch': epoch,
-                'loss': loss.state_dict() if loss is not None else None
+                'loss': g_loss.state_dict()
             }
             d_checkpoint = {
                 'net': discriminator.state_dict(),
                 'optimizer': d_optimizer.state_dict(),
                 'epoch': epoch,
-                'loss': loss.state_dict() if loss is not None else None
+                'loss': d_loss.state_dict()
             }
             torch.save(g_checkpoint, path + '/generator/last.pt')
             torch.save(d_checkpoint, path + '/discriminator/last.pt')
@@ -235,21 +233,6 @@ def train(self):
                 torch.save(d_checkpoint, path + '/discriminator/best.pt')
             Ssim.append(ssim_source.item())
             print("Model SSIM : ", ssim_source.item())
-
-
-        # 学习率退火
-        if self.lr_deduce == 'no':
-            pass
-        elif self.lr_deduce == 'reduceLR':
-            assert LR_D is not None, 'no such lr deduce'
-            assert LR_G is not None, 'no such lr deduce'
-            LR_D.step(d_output)
-            LR_G.step(g_output)
-        elif self.lr_deduce == 'coslr' or 'lamb':
-            assert LR_D is not None, 'no such lr deduce'
-            assert LR_G is not None, 'no such lr deduce'
-            LR_D.step()
-            LR_G.step()
 
         # 写入日志文件
         to_write = train_log_txt_formatter.format(time_str=time.strftime("%Y_%m_%d_%H:%M:%S"),
@@ -270,7 +253,8 @@ def train(self):
         # 可视化训练结果
         log.add_scalar('generation loss', np.mean(gen_loss), epoch + 1)
         log.add_scalar('discrimination loss', np.mean(dis_loss), epoch + 1)
-        log.add_scalar('learning rate', g_optimizer.state_dict()['param_groups'][0]['lr'], epoch + 1)
+        log.add_scalar('learning rate', g_optimizer.state_dict()
+                       ['param_groups'][0]['lr'], epoch + 1)
         log.add_scalar('SSIM', np.mean(Ssim), epoch + 1)
         log.add_images('real', img, epoch + 1)
         log.add_images('fake', fake_img, epoch + 1)
