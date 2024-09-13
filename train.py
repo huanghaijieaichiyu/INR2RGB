@@ -19,7 +19,7 @@ def args():
                         )
     parser.add_argument("--seed", type=int, default=1999, help="random seed")
     parser.add_argument("--resume", type=str,
-                        default='runs/train(4)/generator/last.pt', help="path to two latest checkpoint.")
+                        default='', help="path to two latest checkpoint.")
     parser.add_argument("--amp", type=bool, default=True,
                         help="Whether to use amp in mixed precision")
     parser.add_argument("--cuDNN", type=bool, default=True,
@@ -42,8 +42,6 @@ def args():
                         help="adam: decay of first order momentum of gradient")  # 动量梯度下降第一个参数
     parser.add_argument("--b2", type=float, default=0.999,
                         help="adam: decay of first order momentum of gradient")  # 动量梯度下降第二个参数
-    parser.add_argument("--lr_deduce", type=str, default='no',
-                        choices=['coslr', 'llamb', 'reduceLR', 'no'], help='using a lr tactic')
 
     parser.add_argument("--device", type=str, default='cuda', choices=['cpu', 'cuda'],
                         help="select your device to train, if you have a gpu, use 'cuda:0'!")  # 训练设备
