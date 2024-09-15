@@ -1,0 +1,30 @@
+------------------ start ------------------
+data : ../datasets/coco5000
+epochs : 1000
+batch_size : 16
+img_size : (256, 256)
+optimizer : Adam
+num_workers : 10
+seed : 1999
+resume : /home/huang/INR2RGB/runs/train(1)
+amp : True
+cuDNN : True
+loss : bce
+lr : 0.00035
+momentum : 0.5
+depth : 1
+weight : 1
+model : train
+b1 : 0.9
+b2 : 0.999
+device : cuda
+save_path : runs/
+benchmark : False
+deterministic : True
+draw_model : False
+------------------- end -------------------
+The parameters of generator: 5.15 M
+The Gflops of generator: 3.78 G
+The parameters of discriminator: 0.16 M
+The Gflops of  discriminator: 0.01 G
+-------------------------------------------

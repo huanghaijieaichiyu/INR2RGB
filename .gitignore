@@ -1,4 +1,4 @@
 /runs/
-!/.conda/
-/.idea
-/__pycache__
+/.conda/
+/.idea/
+/__pycache__/

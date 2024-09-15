@@ -7,6 +7,7 @@ import torch
 import torch.nn as nn
 from torcheval.metrics.functional import peak_signal_noise_ratio
 from torchvision import transforms
+from utils.loss import BCEBlurWithLogitsLoss
 from utils.misic import set_random_seed, get_opt, get_loss, ssim, model_structure, save_path
 from torch.backends import cudnn
 from torch.cuda.amp import autocast
@@ -24,7 +25,7 @@ from utils.color_trans import PSlab2rgb, PSrgb2lab
 def train(args):
     # 避免同名覆盖
     if args.resume != '':
-        path = os.path.dirname(os.path.dirname(args.resume))
+        path = args.resume
     else:
         path = save_path(args.save_path)
         os.makedirs(os.path.join(path, 'generator'))
@@ -101,7 +102,7 @@ def train(args):
 
     g_loss = get_loss(args.loss)
     g_loss = g_loss.to(device)
-    d_loss = nn.SmoothL1Loss()
+    d_loss = BCEBlurWithLogitsLoss()
     d_loss.to(device)
 
     # 此处开始训练
@@ -130,14 +131,15 @@ def train(args):
         # 断点训练参数设置
         if args.resume != '':
             # Loading the generator's checkpoints
-            g_path_checkpoint = os.path.join(args.resume, 'generator')
+            g_path_checkpoint = os.path.join(args.resume, 'generator/last.pt')
             g_checkpoint = torch.load(g_path_checkpoint)  # 加载断点
             generator.load_state_dict(g_checkpoint['net'])
             g_optimizer.load_state_dict(g_checkpoint['optimizer'])
             g_epoch = g_checkpoint['epoch']  # 设置开始的epoch
             g_loss.load_state_dict = g_checkpoint['loss']
 
-            d_path_checkpoint = os.path.join(args.resume, 'discriminator')
+            d_path_checkpoint = os.path.join(
+                args.resume, 'discriminator/last.pt')
             d_checkpoint = torch.load(d_path_checkpoint)  # 加载断点
             discriminator.load_state_dict(d_checkpoint['net'])
             d_optimizer.load_state_dict(d_checkpoint['optimizer'])
