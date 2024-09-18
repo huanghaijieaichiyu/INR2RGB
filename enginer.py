@@ -4,7 +4,6 @@ import time
 import cv2
 import numpy as np
 import torch
-import torch.nn as nn
 from torcheval.metrics.functional import peak_signal_noise_ratio
 from torchvision import transforms
 from utils.loss import BCEBlurWithLogitsLoss
@@ -138,8 +137,7 @@ def train(args):
             g_epoch = g_checkpoint['epoch']  # 设置开始的epoch
             g_loss.load_state_dict = g_checkpoint['loss']
 
-            d_path_checkpoint = os.path.join(
-                args.resume, 'discriminator/last.pt')
+            d_path_checkpoint = os.path.join(args.resume, 'discriminator/last.pt')
             d_checkpoint = torch.load(d_path_checkpoint)  # 加载断点
             discriminator.load_state_dict(d_checkpoint['net'])
             d_optimizer.load_state_dict(d_checkpoint['optimizer'])

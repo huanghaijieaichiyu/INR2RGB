@@ -7,7 +7,7 @@ import torch
 from torch.utils.data import DataLoader
 from torchvision import transforms
 from tqdm import tqdm
-from trainer import predict_live, predict
+from enginer import predict_live, predict
 from datasets.data_set import MyDataset
 
 from models.base_mode import Generator

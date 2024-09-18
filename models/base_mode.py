@@ -120,11 +120,3 @@ class Discriminator(nn.Module):
             self.batch_size if x.shape[0] == self.batch_size else x.shape[0], -1)
 
         return x
-
-
-if __name__ == '__main__':
-    # model = Discriminator()
-    model_ = Generator(1, 1)
-    # d_params, d_macs = model_structure(model, (2, 256, 256))
-    d_params, d_macs = model_structure(model_, (1, 256, 256))
-    print(d_params, d_macs)
