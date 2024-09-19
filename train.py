@@ -21,7 +21,7 @@ def args():
     parser.add_argument("--seed", type=int,
                         default=random.randint(1, 100000), help="random seed")
     parser.add_argument("--resume", type=str,
-                        default='/home/huang/INR2RGB/runs/train(1)', help="path to two latest checkpoint.")
+                        default='', help="path to two latest checkpoint.")
     parser.add_argument("--amp", type=bool, default=True,
                         help="Whether to use amp in mixed precision")
     parser.add_argument("--cuDNN", type=bool, default=True,

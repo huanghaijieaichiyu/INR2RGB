@@ -1,18 +1,5 @@
 import argparse
-import os
-
-import cv2
-import numpy as np
-import torch
-from torch.utils.data import DataLoader
-from torchvision import transforms
-from tqdm import tqdm
 from enginer import predict_live, predict
-from datasets.data_set import MyDataset
-
-from models.base_mode import Generator
-from utils.color_trans import PSrgb2lab, PSlab2rgb
-from utils.misic import model_structure, save_path
 
 
 def parse_args():
@@ -20,7 +7,7 @@ def parse_args():
     parser.add_argument("--data", type=str, default='0',
                         help='path to dataset, and 0 is to open your camara')
     parser.add_argument(
-        "--model", type=str, default='runs/train(4)/generator/last.pt', help="path to model")
+        "--model", type=str, default='runs/train(1)/generator/last.pt', help="path to model")
     parser.add_argument("--batch_size", type=int, default=16,
                         help="size of the batches")  # batch大小
     parser.add_argument("--img_size", type=tuple,
@@ -37,7 +24,6 @@ def parse_args():
     opt = parser.parse_args()
     print(opt)
     return opt
-
 
 
 if __name__ == '__main__':

@@ -2,6 +2,7 @@ import math
 
 import torch.nn as nn
 
+from models.MobileVit3 import MobileViTv3_block
 from models.common import SPPF, Conv, C2f, SPPELAN, Concat, Disconv, Gencov, Conv_trans, EMA, C2fCIB, PSA, SCDown
 from utils.misic import model_structure
 
@@ -73,11 +74,11 @@ class Discriminator(nn.Module):
 
     def __init__(self, batch_size=8, img_size=256):
         """
-        :param batch_size: batch size
+        :param batch_size: batch size\
         """
+        super(Discriminator, self).__init__()
         self.batch_size = batch_size
         ratio = img_size / 256.
-        super(Discriminator, self).__init__()
         self.conv_in = nn.Sequential(Disconv(2, 8, ),
                                      Disconv(8, 16, 3, 2),  # 128
                                      )
@@ -120,3 +121,17 @@ class Discriminator(nn.Module):
             self.batch_size if x.shape[0] == self.batch_size else x.shape[0], -1)
 
         return x
+
+
+class DiscriminatorVit(nn.Module):
+    def __init__(self, batch_size=8, img_size=256):
+        super(DiscriminatorVit, self).__init__()
+        self.batch_size = batch_size
+        ratio = img_size / 256.
+        self.layer1 = MobileViTv3_block(2, 2)
+        self.layer2 = Disconv(2, 1, 3, 1, bn=False, act=False)
+        self.act = nn.Sigmoid()
+
+    def forward(self, x):
+
+        return self.act(self.layer2(self.layer1(self.layer1(x))))

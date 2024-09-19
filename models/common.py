@@ -1347,3 +1347,4 @@ class Conv_trans(nn.Module):
 
     def forward(self, x):
         return self.act(self.bn(self.conv(x)))
+

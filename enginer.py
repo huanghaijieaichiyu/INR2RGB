@@ -17,7 +17,7 @@ from tqdm import tqdm
 from rich import print
 
 from datasets.data_set import MyDataset
-from models.base_mode import Generator, Discriminator
+from models.base_mode import Generator, Discriminator, DiscriminatorVit
 from utils.color_trans import PSlab2rgb, PSrgb2lab
 
 
@@ -52,7 +52,7 @@ def train(args):
     # 选择模型参数
 
     generator = Generator(args.depth, args.weight)
-    discriminator = Discriminator(
+    discriminator = DiscriminatorVit(
         batch_size=args.batch_size, img_size=args.img_size[0])
 
     if args.draw_model:
@@ -122,8 +122,6 @@ def train(args):
         fake_tensor = torch.zeros(
             (args.batch_size, 3, args.img_size[0], args.img_size[1]))
         d_g_z2 = 0.
-        d_output = 0
-        g_output = 0
         # 储存loss 判断模型好坏
         gen_loss = []
         dis_loss = []
