@@ -1,24 +1,23 @@
 import os
-
 import time
+
 import cv2
 import numpy as np
 import torch
-from torcheval.metrics.functional import peak_signal_noise_ratio
-from torchvision import transforms
-from utils.loss import BCEBlurWithLogitsLoss
-from utils.misic import set_random_seed, get_opt, get_loss, ssim, model_structure, save_path
+from rich import print
 from torch.backends import cudnn
 from torch.cuda.amp import autocast
-
 from torch.utils import tensorboard
 from torch.utils.data import DataLoader
+from torcheval.metrics.functional import peak_signal_noise_ratio
+from torchvision import transforms
 from tqdm import tqdm
-from rich import print
 
 from datasets.data_set import MyDataset
-from models.base_mode import Generator, Discriminator, DiscriminatorVit
+from models.base_mode import Generator, Discriminator
 from utils.color_trans import PSlab2rgb, PSrgb2lab
+from utils.loss import BCEBlurWithLogitsLoss
+from utils.misic import set_random_seed, get_opt, get_loss, ssim, model_structure, save_path
 
 
 def train(args):
@@ -186,7 +185,7 @@ def train(args):
                 d_fake_output.backward()
                 d_g_z1 = fake_inputs.mean().item()
                 d_output = (d_real_output.item() + d_fake_output.item()) / 2.
-                torch.nn.utils.clip_grad_norm_(discriminator.parameters(), 10)
+                torch.nn.utils.clip_grad_norm_(discriminator.parameters(), 100)
                 d_optimizer.step()
 
                 '''--------------- 训练生成器 ----------------'''

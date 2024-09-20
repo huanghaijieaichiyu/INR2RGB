@@ -37,11 +37,11 @@ class Generator(nn.Module):
             PSA(math.ceil(512 * depth), math.ceil(512 * depth)),
             Gencov(math.ceil(512 * depth), math.ceil(256 * depth)), )
         self.conv6 = nn.Sequential(
-            Gencov(math.ceil(768 * depth),
-                   math.ceil(64 * depth), math.ceil(3 * weight)),
+            Gencov(math.ceil(256 * depth),
+                   math.ceil(128 * depth), math.ceil(3 * weight)),
             nn.Upsample(scale_factor=2, mode='bilinear', align_corners=True))
         self.conv7 = nn.Sequential(
-            Gencov(math.ceil(192 * depth),
+            Gencov(math.ceil(256 * depth),
                    math.ceil(64 * depth), math.ceil(weight)),
             nn.Upsample(scale_factor=2, mode='bilinear', align_corners=True)
         )
@@ -62,7 +62,7 @@ class Generator(nn.Module):
         x3 = self.conv3(x2)
         x4 = self.conv4(x3)
         x5 = self.conv5(x4)
-        x6 = self.conv6(self.concat([x5, x4]))
+        x6 = self.conv6(x5)
 
         # neck net
 

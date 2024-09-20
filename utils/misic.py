@@ -1,19 +1,17 @@
-import math
-import random
 import os
-
-import numpy as np
-import torch.nn as nn
-from torch.optim.lr_scheduler import LambdaLR
-from timm.optim import Lion, RMSpropTF
-import torch
-import torch.nn.functional as F
-from torch.autograd import Variable
+import random
+from copy import copy
 from math import exp
 
+import numpy as np
+import torch
+import torch.nn as nn
+import torch.nn.functional as F
+from ptflops import get_model_complexity_info
+from timm.optim import Lion, RMSpropTF
+from torch.autograd import Variable
 
 from utils.loss import BCEBlurWithLogitsLoss, FocalLoss
-
 
 
 def set_random_seed(seed=10, deterministic=False, benchmark=False):
@@ -26,6 +24,7 @@ def set_random_seed(seed=10, deterministic=False, benchmark=False):
     if benchmark:
         torch.backends.cudnn.benchmark = True
     return seed
+
 
 def get_opt(self, generator, discriminator):
     if self.optimizer == 'AdamW':
@@ -71,6 +70,7 @@ def get_loss(loss_name):
         print('no such Loss Function!')
         raise NotImplementedError
     return loss
+
 
 def gaussian(window_size, sigma):
     gauss = torch.Tensor([exp(-(x - window_size // 2) ** 2 / float(2 * sigma ** 2)) for x in range(window_size)])
@@ -143,18 +143,15 @@ def ssim(img1, img2, window_size=11, size_average=True):
 
     return _ssim(img1, img2, window, window_size, channel, size_average)
 
+
 def save_path(path, model='train'):
     file_path = os.path.join(path, model)
     i = 1
     while os.path.exists(file_path):
-
-        file_path = os.path.join(path, model+'(%i)' % i)
+        file_path = os.path.join(path, model + '(%i)' % i)
         i += 1
 
     return file_path
-
-from ptflops import get_model_complexity_info
-from copy import copy
 
 
 def model_structure(model, img_size):
