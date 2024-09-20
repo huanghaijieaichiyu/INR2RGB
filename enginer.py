@@ -174,7 +174,6 @@ def train(args):
                 fake_tensor[:, 1:, :, :] = lamb * fake
 
                 fake_img = PSlab2rgb(fake_tensor)
-                psn = peak_signal_noise_ratio(fake_img, img, data_range=255.)
 
                 real_lable = torch.ones_like(fake_inputs, requires_grad=False)
                 fake_lable = torch.zeros_like(fake_inputs, requires_grad=False)
@@ -226,11 +225,13 @@ def train(args):
         if (epoch + 1) % 10 == 0 and (epoch + 1) >= 10:
             print("Evaluating the generator model")
             ssim_source = ssim(fake_tensor, img)
+            psn = peak_signal_noise_ratio(fake_img, img, data_range=255.)
             if ssim_source.item() > max(Ssim):
                 torch.save(g_checkpoint, path + '/generator/best.pt')
                 torch.save(d_checkpoint, path + '/discriminator/best.pt')
             Ssim.append(ssim_source.item())
-            print("Model SSIM : ", ssim_source.item())
+            print("Model SSIM : {}          PSN: {}".format(ssim_source.item(), psn.item()))
+
 
         # 写入日志文件
         to_write = train_log_txt_formatter.format(time_str=time.strftime("%Y_%m_%d_%H:%M:%S"),
@@ -257,7 +258,7 @@ def train(args):
         log.add_images('real', img, epoch + 1)
         log.add_images('fake', fake_img, epoch + 1)
         epoch += 1
-    pbar.close()
+        pbar.close()
     log.close()
 
 
