@@ -52,7 +52,7 @@ def train(args):
     # 选择模型参数
 
     generator = Generator(args.depth, args.weight)
-    discriminator = DiscriminatorVit(
+    discriminator = Discriminator(
         batch_size=args.batch_size, img_size=args.img_size[0])
 
     if args.draw_model:
@@ -135,7 +135,8 @@ def train(args):
             g_epoch = g_checkpoint['epoch']  # 设置开始的epoch
             g_loss.load_state_dict = g_checkpoint['loss']
 
-            d_path_checkpoint = os.path.join(args.resume, 'discriminator/last.pt')
+            d_path_checkpoint = os.path.join(
+                args.resume, 'discriminator/last.pt')
             d_checkpoint = torch.load(d_path_checkpoint)  # 加载断点
             discriminator.load_state_dict(d_checkpoint['net'])
             d_optimizer.load_state_dict(d_checkpoint['optimizer'])
@@ -192,8 +193,7 @@ def train(args):
                 '''--------------- 训练生成器 ----------------'''
                 fake_inputs = discriminator(fake)
                 # G 希望 fake 为 1 加上 psn及 ssim相似损失
-                g_output = (g_loss(fake_inputs, real_lable) +
-                            g_loss((100 - psn) * 0.01, torch.ones_like(psn))) * 0.5
+                g_output = g_loss(fake_inputs, real_lable)
                 g_output.backward()
                 d_g_z2 = fake_inputs.mean().item()
                 torch.nn.utils.clip_grad_norm_(generator.parameters(), 5)
