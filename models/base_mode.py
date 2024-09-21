@@ -93,12 +93,12 @@ class Discriminator(nn.Module):
                                    Disconv(64, 32, 3, 2),  # 32
                                    Disconv(32, 16),
                                    Disconv(16, 8, 3, 2),  # 16
-                                   Disconv(8, 4),
-                                   MobileViTv3_block(4, 4)
+                                   MobileViTv3_block(8, 8),
+                                   Disconv(8, 4, 1, 2)
                                    )
         self.conv_out = Disconv(4, 1, bn=False, act=False)
 
-        self.flat = nn.Flatten()
+        """self.flat = nn.Flatten()
 
         self.liner = nn.Sequential(nn.Linear(math.ceil(16 * ratio) ** 2, 16 * 16),
                                    nn.LeakyReLU(),
@@ -115,7 +115,7 @@ class Discriminator(nn.Module):
                                    nn.Linear(4 * 8, 8),
                                    nn.LeakyReLU(),
                                    nn.BatchNorm1d(8),
-                                   nn.Linear(8, 1))
+                                   nn.Linear(8, 1))"""
 
         self.act = nn.Sigmoid()
 

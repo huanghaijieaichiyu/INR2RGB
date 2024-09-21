@@ -1022,9 +1022,12 @@ def fuse_conv_and_bn(conv, bn):
     fusedconv.weight.copy_(torch.mm(w_bn, w_conv).view(fusedconv.weight.shape))
 
     # Prepare spatial bias
-    b_conv = torch.zeros(conv.weight.shape[0], device=conv.weight.device) if conv.bias is None else conv.bias
-    b_bn = bn.bias - bn.weight.mul(bn.running_mean).div(torch.sqrt(bn.running_var + bn.eps))
-    fusedconv.bias.copy_(torch.mm(w_bn, b_conv.reshape(-1, 1)).reshape(-1) + b_bn)
+    b_conv = torch.zeros(
+        conv.weight.shape[0], device=conv.weight.device) if conv.bias is None else conv.bias
+    b_bn = bn.bias - \
+        bn.weight.mul(bn.running_mean).div(torch.sqrt(bn.running_var + bn.eps))
+    fusedconv.bias.copy_(
+        torch.mm(w_bn, b_conv.reshape(-1, 1)).reshape(-1) + b_bn)
 
     return fusedconv
 
@@ -1050,12 +1053,16 @@ def fuse_deconv_and_bn(deconv, bn):
     # Prepare filters
     w_deconv = deconv.weight.clone().view(deconv.out_channels, -1)
     w_bn = torch.diag(bn.weight.div(torch.sqrt(bn.eps + bn.running_var)))
-    fuseddconv.weight.copy_(torch.mm(w_bn, w_deconv).view(fuseddconv.weight.shape))
+    fuseddconv.weight.copy_(
+        torch.mm(w_bn, w_deconv).view(fuseddconv.weight.shape))
 
     # Prepare spatial bias
-    b_conv = torch.zeros(deconv.weight.shape[1], device=deconv.weight.device) if deconv.bias is None else deconv.bias
-    b_bn = bn.bias - bn.weight.mul(bn.running_mean).div(torch.sqrt(bn.running_var + bn.eps))
-    fuseddconv.bias.copy_(torch.mm(w_bn, b_conv.reshape(-1, 1)).reshape(-1) + b_bn)
+    b_conv = torch.zeros(
+        deconv.weight.shape[1], device=deconv.weight.device) if deconv.bias is None else deconv.bias
+    b_bn = bn.bias - \
+        bn.weight.mul(bn.running_mean).div(torch.sqrt(bn.running_var + bn.eps))
+    fuseddconv.bias.copy_(
+        torch.mm(w_bn, b_conv.reshape(-1, 1)).reshape(-1) + b_bn)
 
     return fuseddconv
 
@@ -1168,7 +1175,8 @@ class C2fCIB(C2f):
         expansion.
         """
         super().__init__(c1, c2, n, shortcut, g, e)
-        self.m = nn.ModuleList(CIB(self.c, self.c, shortcut, e=1.0, lk=lk) for _ in range(n))
+        self.m = nn.ModuleList(
+            CIB(self.c, self.c, shortcut, e=1.0, lk=lk) for _ in range(n))
 
 
 class Attention(nn.Module):
@@ -1189,13 +1197,15 @@ class Attention(nn.Module):
         B, _, H, W = x.shape
         N = H * W
         qkv = self.qkv(x)
-        q, k, v = qkv.view(B, self.num_heads, -1, N).split([self.key_dim, self.key_dim, self.head_dim], dim=2)
+        q, k, v = qkv.view(
+            B, self.num_heads, -1, N).split([self.key_dim, self.key_dim, self.head_dim], dim=2)
 
         attn = (
-                (q.transpose(-2, -1) @ k) * self.scale
+            (q.transpose(-2, -1) @ k) * self.scale
         )
         attn = attn.softmax(dim=-1)
-        x = (v @ attn.transpose(-2, -1)).view(B, -1, H, W) + self.pe(v.reshape(B, -1, H, W))
+        x = (v @ attn.transpose(-2, -1)).view(B, -1, H, W) + \
+            self.pe(v.reshape(B, -1, H, W))
         x = self.proj(x)
         return x
 
@@ -1303,7 +1313,7 @@ class Disconv(nn.Module):
         super(Disconv, self).__init__()
         self.conv = Conv2dSame(c1, c2, k, s, groups=g, dilation=d, bias=bias)
         self.bn = nn.BatchNorm2d(c2) if bn else nn.Identity()
-        self.act = nn.SiLU() if act else nn.Identity()
+        self.act = nn.LeakyReLU() if act else nn.Identity()
 
     def forward(self, x):
         return self.act(self.bn(self.conv(x)))
@@ -1347,4 +1357,3 @@ class Conv_trans(nn.Module):
 
     def forward(self, x):
         return self.act(self.bn(self.conv(x)))
-

@@ -185,7 +185,7 @@ def train(args):
                 d_fake_output.backward()
                 d_g_z1 = fake_inputs.mean().item()
                 d_output = (d_real_output.item() + d_fake_output.item()) / 2.
-                torch.nn.utils.clip_grad_norm_(discriminator.parameters(), 100)
+                torch.nn.utils.clip_grad_norm_(discriminator.parameters(), 200)
                 d_optimizer.step()
 
                 '''--------------- 训练生成器 ----------------'''
