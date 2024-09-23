@@ -1,5 +1,5 @@
 import argparse
-from enginer import train
+from engine import train
 import random
 
 
@@ -21,7 +21,7 @@ def args():
     parser.add_argument("--seed", type=int,
                         default=random.randint(1, 100000), help="random seed")
     parser.add_argument("--resume", type=str,
-                        default='runs/train', help="path to two latest checkpoint.")
+                        default='', help="path to two latest checkpoint.")
     parser.add_argument("--amp", type=bool, default=True,
                         help="Whether to use amp in mixed precision")
     parser.add_argument("--cuDNN", type=bool, default=True,
@@ -30,7 +30,7 @@ def args():
                         choices=['BCEBlurWithLogitsLoss', 'mse', 'bce',
                                  'FocalLoss', 'wgb'],
                         help="loss function")
-    parser.add_argument("--lr", type=float, default=1e-3,
+    parser.add_argument("--lr", type=float, default=3.5e-4,
                         help="learning rate, for adam is 1-e3, SGD is 1-e2")  # 学习率
     parser.add_argument("--momentum", type=float, default=0.5,
                         help="momentum for adam and SGD")

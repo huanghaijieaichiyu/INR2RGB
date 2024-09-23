@@ -4,6 +4,7 @@ import time
 import cv2
 import numpy as np
 import torch
+import torch.nn as nn
 from rich import print
 from torch.backends import cudnn
 from torch.cuda.amp import autocast
@@ -14,7 +15,7 @@ from torchvision import transforms
 from tqdm import tqdm
 
 from datasets.data_set import MyDataset
-from models.base_mode import Generator, Discriminator
+from models.base_mode import DiscriminatorVit, Generator, Discriminator
 from utils.color_trans import PSlab2rgb, PSrgb2lab
 from utils.loss import BCEBlurWithLogitsLoss
 from utils.misic import set_random_seed, get_opt, get_loss, ssim, model_structure, save_path
@@ -99,10 +100,11 @@ def train(args):
     d_optimizer, g_optimizer = get_opt(args, generator, discriminator)
 
     g_loss = get_loss(args.loss)
+    stable_loss = BCEBlurWithLogitsLoss()
     g_loss = g_loss.to(device)
     d_loss = BCEBlurWithLogitsLoss()
     d_loss.to(device)
-
+    stable_loss.to(device)
     # 此处开始训练
     # 使用cuDNN加速训练
     if args.cuDNN:
@@ -191,7 +193,7 @@ def train(args):
                 '''--------------- 训练生成器 ----------------'''
                 fake_inputs = discriminator(fake)
                 # G 希望 fake 为 1 加上 psn及 ssim相似损失
-                g_output = g_loss(fake_inputs, real_lable)
+                g_output = (g_loss(fake_inputs, real_lable) + stable_loss(fake, color / lamb)) / 2.
                 g_output.backward()
                 d_g_z2 = fake_inputs.mean().item()
                 torch.nn.utils.clip_grad_norm_(generator.parameters(), 5)
@@ -229,8 +231,8 @@ def train(args):
                 torch.save(g_checkpoint, path + '/generator/best.pt')
                 torch.save(d_checkpoint, path + '/discriminator/best.pt')
             Ssim.append(ssim_source.item())
-            print("Model SSIM : {}          PSN: {}".format(ssim_source.item(), psn.item()))
-
+            print("Model SSIM : {}          PSN: {}".format(
+                ssim_source.item(), psn.item()))
 
         # 写入日志文件
         to_write = train_log_txt_formatter.format(time_str=time.strftime("%Y_%m_%d_%H:%M:%S"),

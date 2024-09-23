@@ -2,7 +2,7 @@ import math
 
 import torch.nn as nn
 
-from models.MobileVit3 import MobileViTv3_block
+from models.Repvit import RepViTBlock
 from models.common import C2f, SPPELAN, Concat, Disconv, Gencov, C2fCIB, PSA, SCDown
 
 
@@ -14,19 +14,19 @@ class Generator(nn.Module):
         weight = weight
         self.conv1 = Gencov(1, math.ceil(8 * depth))
         self.conv2 = nn.Sequential(
-            Gencov(math.ceil(8 * depth), math.ceil(16 * depth),
+            RepViTBlock(math.ceil(8 * depth), math.ceil(16 * depth),
                    math.ceil(weight), 2),
             C2f(math.ceil(16 * depth), math.ceil(32 * depth), 1, True)
         )
 
         self.conv3 = nn.Sequential(
-            Gencov(math.ceil(32 * depth),
+            RepViTBlock(math.ceil(32 * depth),
                    math.ceil(64 * depth), math.ceil(weight), 2),
             C2f(math.ceil(64 * depth), math.ceil(128 * depth), 1, True)
         )
 
         self.conv4 = nn.Sequential(
-            SCDown(math.ceil(128 * depth),
+            RepViTBlock(math.ceil(128 * depth),
                    math.ceil(256 * depth), math.ceil(weight), 2),
             C2f(math.ceil(256 * depth), math.ceil(512 * depth), 1, True)
         )
@@ -35,7 +35,7 @@ class Generator(nn.Module):
             SPPELAN(math.ceil(512 * depth), math.ceil(512 * depth),
                     math.ceil(256 * depth)),
             PSA(math.ceil(512 * depth), math.ceil(512 * depth)),
-            Gencov(math.ceil(512 * depth), math.ceil(256 * depth)), )
+            Gencov(math.ceil(512 * depth), math.ceil(256 * depth)))
         self.conv6 = nn.Sequential(
             Gencov(math.ceil(256 * depth),
                    math.ceil(128 * depth), math.ceil(3 * weight)),
@@ -85,16 +85,15 @@ class Discriminator(nn.Module):
         super(Discriminator, self).__init__()
         self.batch_size = batch_size
         ratio = img_size / 256.
-        self.conv_in = nn.Sequential(Disconv(2, 8, ),
-                                     Disconv(8, 16, 3, 2),  # 128
+        self.conv_in = nn.Sequential(Disconv(2, 8),
+                                     RepViTBlock(8, 16, 3, 2),  # 128
                                      )
-        self.conv1 = nn.Sequential(Disconv(16, 32, 3, 2),  # 64
-                                   Disconv(32, 64),
-                                   Disconv(64, 32, 3, 2),  # 32
-                                   Disconv(32, 16),
-                                   Disconv(16, 8, 3, 2),  # 16
-                                   MobileViTv3_block(8, 8),
-                                   Disconv(8, 4, 1, 2)
+        self.conv1 = nn.Sequential(RepViTBlock(16, 32, 3, 2),  # 64
+                                   Disconv(32, 64, ),
+                                   RepViTBlock(64, 32, 3, 2),  # 32
+                                   Disconv(32, 16, ),
+                                   RepViTBlock(16, 8, 3, 2),  # 16
+                                   Disconv(8, 4)
                                    )
         self.conv_out = Disconv(4, 1, bn=False, act=False)
 
@@ -136,11 +135,12 @@ class DiscriminatorVit(nn.Module):
         super(DiscriminatorVit, self).__init__()
         self.batch_size = batch_size
         ratio = img_size / 256.
-        self.conv_in = Disconv(2, 4, 1, 2)
-        self.layer1 = MobileViTv3_block(4, 4)
+        self.conv_in = RepViTBlock(2, 4, 1, 2)
+        self.layer1 = RepViTBlock(4, 4, 1)
         self.layer2 = Disconv(4, 1, 3, 1, bn=False, act=False)
         self.act = nn.Sigmoid()
 
     def forward(self, x):
 
-        return self.act(self.layer2(self.layer1(self.conv_in(x))))
+        return self.act(self.layer2(self.layer1(self.conv_in(x)))).view(
+            self.batch_size if x.shape[0] == self.batch_size else x.shape[0], -1)
