@@ -176,8 +176,10 @@ def train(args):
 
                 fake_img = PSlab2rgb(fake_tensor)
 
-                real_lable = torch.ones_like(fake_inputs.detach(), requires_grad=False)
-                fake_lable = torch.zeros_like(fake_inputs.detach(), requires_grad=False)
+                real_lable = torch.ones_like(
+                    fake_inputs.detach(), requires_grad=False)
+                fake_lable = torch.zeros_like(
+                    fake_inputs.detach(), requires_grad=False)
                 # D 希望 real_loss 为 1
                 d_real_output = d_loss(real_inputs, real_lable)
                 d_real_output.backward()
@@ -193,11 +195,10 @@ def train(args):
                 '''--------------- 训练生成器 ----------------'''
                 fake_inputs = discriminator(fake.detach())
                 # G 希望 fake 为 1 加上 psn及 ssim相似损失
-                g_output = g_loss(fake_inputs, real_lable)
+                g_output = (g_loss(fake_inputs, real_lable) +
+                            stable_loss(fake, color / lamb)) / 2.
                 g_output.backward()
                 d_g_z2 = fake_inputs.mean().item()
-                stable_output = stable_loss(fake, color / lamb)
-                stable_output.backward()
                 torch.nn.utils.clip_grad_norm_(generator.parameters(), 5)
                 g_optimizer.step()
 
@@ -206,9 +207,9 @@ def train(args):
 
             source_g.append(d_g_z2)
             pbar.set_description('||Epoch: [%d/%d]|--|--|Batch: [%d/%d]|--|--|Loss_D: %.4f|--|--|Loss_G: '
-                                 '%.4f|--|--|Loss_Stable: %.4f|--|--|D(x): %.4f|--|--|D(G(z)): %.4f / %.4f|'
+                                 '%.4f|--|--|--|D(x): %.4f|--|--|D(G(z)): %.4f / %.4f|'
                                  % (epoch + 1, args.epochs, target + 1, len(train_loader),
-                                    d_output, g_output.item(), stable_output.item(), d_x, d_g_z1, d_g_z2))
+                                    d_output, g_output.item(), d_x, d_g_z1, d_g_z2))
 
             g_checkpoint = {
                 'net': generator.state_dict(),
