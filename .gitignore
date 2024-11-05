@@ -2,6 +2,7 @@
 __pycache__/
 *.py[cod]
 *$py.class
+.__pycache__/
 
 # C extensions
 *.so
@@ -141,3 +142,6 @@ models/__pycache__
 报告.docx
 报告.pdf
 
+datasets/__pycache__
+utils/__pycache__
+datasets/__pycache__/data_set.cpython-310.pyc

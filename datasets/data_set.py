@@ -17,7 +17,7 @@ def get_images_and_labels(dir_path):
     dir_path = Path(dir_path)
     classes = ['']  # 类别名列表
     images_list = []  # 文件名列表
-    labels_list = ['22']  # 标签列表
+    labels_list = []  # 标签列表
 
     for index, name in enumerate(classes):
         class_path = dir_path / name
