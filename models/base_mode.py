@@ -12,7 +12,7 @@ class Generator(nn.Module):
         super(Generator, self).__init__()
         depth = depth
         weight = weight
-        self.conv1 = Gencov(1, math.ceil(8 * depth))
+        self.conv1 = Gencov(3, math.ceil(8 * depth))
         self.conv2 = nn.Sequential(
             RepViTBlock(math.ceil(8 * depth), math.ceil(16 * depth),
                         math.ceil(weight), 2),
@@ -54,7 +54,7 @@ class Generator(nn.Module):
             nn.Upsample(scale_factor=2, mode='bilinear', align_corners=True),
         )
 
-        self.conv9 = Gencov(math.ceil(112 * depth), 2,
+        self.conv9 = Gencov(math.ceil(112 * depth), 3,
                             math.ceil(weight), act=False, bn=False)
         self.tanh = nn.Tanh()
         self.concat = Concat()
@@ -74,7 +74,7 @@ class Generator(nn.Module):
         x8 = self.conv8(self.concat([x2, x7]))
         x9 = self.tanh(self.conv9(x8))
 
-        return x9.view(-1, 2, x.shape[2], x.shape[3])
+        return x9.view(-1, 3, x.shape[2], x.shape[3])
 
 
 class Discriminator(nn.Module):
@@ -89,7 +89,7 @@ class Discriminator(nn.Module):
         super(Discriminator, self).__init__()
         self.batch_size = batch_size
         ratio = img_size / 256.
-        self.conv_in = nn.Sequential(Disconv(2, 8),
+        self.conv_in = nn.Sequential(Disconv(3, 8),
                                      RepViTBlock(8, 16, 3, 2),  # 128
                                      )
         self.conv1 = nn.Sequential(RepViTBlock(16, 32, 3, 2),  # 64

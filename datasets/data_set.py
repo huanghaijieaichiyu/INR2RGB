@@ -1,72 +1,140 @@
-import os.path
-import sys
-from pathlib import Path
-
+import os
+import torch
+from torch.utils.data import Dataset, DataLoader
+from torchvision import transforms
 import cv2
 import numpy as np
-from torch.utils.data import Dataset
-from torchvision.transforms import transforms
 
 
-def get_images_and_labels(dir_path):
-    """
-    从图像数据集的根目录dir_path下获取所有类别的图像名列表和对应的标签名列表
-    :param dir_path: 图像数据集的根目录
-    :return: images_list, labels_list
-    """
-    dir_path = Path(dir_path)
-    classes = ['']  # 类别名列表
-    images_list = []  # 文件名列表
-    labels_list = []  # 标签列表
-
-    for index, name in enumerate(classes):
-        class_path = dir_path / name
-        if not class_path.is_dir():
-            continue
-        if sys.getsizeof(class_path.glob('*.jpg')) > 0:
-            for img_path in class_path.glob('*.jpg'):
-                images_list.append(str(img_path))
-                labels_list.append(int(index))
-        elif sys.getsizeof(class_path.glob('*.png')) > 0:
-            for img_path in class_path.glob('*.png'):
-                images_list.append(str(img_path))
-                labels_list.append(int(index))
-        else:
-            print("The datasets' images must be .jpg or .png file.")
-            sys.exit()
-    return images_list, labels_list
-
-
-img_transform = transforms.Compose([
-    transforms.ToTensor(),
-    # transforms.Normalize((0.471, 0.448, 0.408), (0.234, 0.239, 0.242))  # coco标准值
-])
-
-
-class MyDataset(Dataset):
-    def __init__(self, dir_path, img_size, transform=img_transform):
-        super(MyDataset, self).__init__()
-        self.dir_path = dir_path  # 数据集根目录
+class LowLightDataset(Dataset):
+    def __init__(self, image_dir, transform=None, phase="train"):
+        """
+        Args:
+            image_dir (string): 包含LOLdataset的目录。
+            transform (callable, optional): 可选的图像转换。
+            phase (string, optional):  指定数据集的用途，可以是 "train" 或 "test"。
+                                        "train" 加载 our485, "test" 加载 eval15.
+        """
+        self.image_dir = image_dir
         self.transform = transform
-        self.images, self.labels = get_images_and_labels(self.dir_path)
-        self.img_size = img_size
+        self.phase = phase  # 指定数据集的用途
+
+        self.data = []  # 存储图像对的列表 (low_img_path, high_img_path)
+
+        if phase == "train":
+            subset = "our485"
+        elif phase == "test":
+            subset = "eval15"
+        else:
+            raise ValueError("phase must be 'train' or 'test'")
+
+        if subset == "eval15":
+            eval15_dir = os.path.join(image_dir, "eval15")
+            if os.path.exists(eval15_dir):  # 检查目录是否存在
+                eval15_high_dir = os.path.join(eval15_dir, "high")
+                eval15_low_dir = os.path.join(eval15_dir, "low")
+                eval15_image_names = [f for f in os.listdir(
+                    eval15_low_dir) if f.endswith(".png")]
+                eval15_image_names.sort()
+                for img_name in eval15_image_names:
+                    low_img_path = os.path.join(eval15_low_dir, img_name)
+                    high_img_path = os.path.join(eval15_high_dir, img_name)
+                    self.data.append((low_img_path, high_img_path))
+
+        elif subset == "our485":
+            our485_dir = os.path.join(image_dir, "our485")
+            if os.path.exists(our485_dir):  # 检查目录是否存在
+                our485_high_dir = os.path.join(our485_dir, "high")
+                our485_low_dir = os.path.join(our485_dir, "low")
+                our485_image_names = [f for f in os.listdir(our485_low_dir) if any(
+                    f.endswith(ext) for ext in [".png", ".jpg", ".jpeg"])]  # 兼容多种图片格式
+                our485_image_names.sort()
+                for img_name in our485_image_names:
+                    low_img_path = os.path.join(our485_low_dir, img_name)
+                    high_img_path = os.path.join(our485_high_dir, img_name)
+                    self.data.append((low_img_path, high_img_path))
 
     def __len__(self):
-        # 返回数据集的数据数量
-        return len(self.images)
+        return len(self.data)
 
-    def __getitem__(self, index):
-        img_path = self.images[index]
-        label = self.labels[index]
-        img = cv2.imread(img_path)
-        img = cv2.resize(img, self.img_size)
-        img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+    def __getitem__(self, idx):
         """
-        cv2.imshow('img', img)
-        k = cv2.waitKey(0)
-        if k == 27:
-            cv2.destroyAllWindows()
+        Args:
+            idx (int): 索引。
+
+        Returns:
+            tuple: (低光照图像, 正常光照图像)。
         """
-        img = np.array(img)
-        img = self.transform(img)
-        return img, label
+        low_img_path, high_img_path = self.data[idx]
+
+        low_img = cv2.imread(low_img_path)  # OpenCV读取图像
+        low_img = cv2.cvtColor(low_img, cv2.COLOR_BGR2RGB)  # 转换为RGB
+
+        high_img = cv2.imread(high_img_path)  # OpenCV读取图像
+        high_img = cv2.cvtColor(high_img, cv2.COLOR_BGR2RGB)  # 转换为RGB
+
+        if self.transform:
+            low_img = self.transform(low_img)
+            high_img = self.transform(high_img)
+
+        return low_img, high_img
+
+
+# 示例用法:
+if __name__ == '__main__':
+    # 1. 设置数据集目录
+    data_dir = "../datasets/LOLdataset"  # 替换成你的数据集路径
+
+    # 2. 定义图像转换
+    transform = transforms.Compose([
+        transforms.ToPILImage(),  # 先转换为PIL Image, 因为一些transform需要PIL Image作为输入
+        transforms.Resize((256, 256)),  # 可选：调整大小
+        transforms.ToTensor(),          # 转换为Tensor
+        # transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5)) # 可选：归一化
+    ])
+
+    # 3. 创建数据集实例
+    # 创建训练数据集
+    train_dataset = LowLightDataset(
+        image_dir=data_dir, transform=transform, phase="train")
+
+    # 创建测试/评估数据集
+    test_dataset = LowLightDataset(
+        image_dir=data_dir, transform=transform, phase="test")
+
+    # 4. 创建 DataLoader
+    batch_size = 4
+    train_dataloader = DataLoader(
+        train_dataset, batch_size=batch_size, shuffle=True, num_workers=0)
+    test_dataloader = DataLoader(
+        test_dataset, batch_size=batch_size, shuffle=False, num_workers=0)  # 测试时通常不需要shuffle
+
+    # 5. 迭代训练数据
+    print("Training data:")
+    for i, (low_images, high_images) in enumerate(train_dataloader):
+        print(f"Batch {i+1}")
+        print("Low images shape:", low_images.shape)
+        print("High images shape:", high_images.shape)
+
+        # 在这里进行你的模型训练
+        # 例如:
+        # outputs = model(low_images)
+        # loss = criterion(outputs, high_images)
+
+        if i == 2:  # 只迭代几个批次，方便演示
+            break
+
+    # 6. 迭代测试数据
+    print("\nTesting data:")
+    for i, (low_images, high_images) in enumerate(test_dataloader):
+        print(f"Batch {i+1}")
+        print("Low images shape:", low_images.shape)
+        print("High images shape:", high_images.shape)
+
+        # 在这里进行你的模型测试/评估
+        # 例如:
+        # outputs = model(low_images)
+        # psnr = calculate_psnr(outputs, high_images)
+
+        if i == 2:  # 只迭代几个批次，方便演示
+            break

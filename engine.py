@@ -1,20 +1,20 @@
 import os
+from re import S
 import time
 
 import cv2
 import numpy as np
 import torch
 import torch.nn as nn
-from rich import print
 from torch.backends import cudnn
-from torch.cuda.amp import autocast
+from torch.amp. autocast_mode import autocast
 from torch.utils import tensorboard
 from torch.utils.data import DataLoader
 from torcheval.metrics.functional import peak_signal_noise_ratio
 from torchvision import transforms
 from tqdm import tqdm
 
-from datasets.data_set import MyDataset
+from datasets.data_set import LowLightDataset
 from models.base_mode import DiscriminatorVit, Generator, Discriminator
 from utils.color_trans import PSlab2rgb, PSrgb2lab
 from utils.loss import BCEBlurWithLogitsLoss
@@ -60,15 +60,15 @@ def train(args):
         print('Drawing model graph to tensorboard, you can check it with:http://127.0.0.1:6006 in tensorboard '
               '--logdir={}'.format(os.path.join(args.save_path, 'tensorboard')))
         log.add_graph(generator, torch.randn(
-            args.batch_size, 1, args.img_size[0], args.img_size[1]))
+            args.batch_size, 3, args.img_size[0], args.img_size[1]))
         print('Drawing doe!')
         print('-' * 50)
     print('Generator model info: \n')
     g_params, g_macs = model_structure(
-        generator, img_size=(1, args.img_size[0], args.img_size[1]))
+        generator, img_size=(3, args.img_size[0], args.img_size[1]))
     print('Discriminator model info: \n')
     d_params, d_macs = model_structure(
-        discriminator, img_size=(2, args.img_size[0], args.img_size[1]))
+        discriminator, img_size=(3, args.img_size[0], args.img_size[1]))
     generator = generator.to(device)
     discriminator = discriminator.to(device)
     # 打印配置
@@ -88,7 +88,16 @@ def train(args):
     os.makedirs(path, exist_ok=True)
 
     # 加载数据集
-    train_data = MyDataset(args.data, img_size=args.img_size)
+    transform = transforms.Compose([
+        transforms.ToPILImage(),  # 先转换为PIL Image, 因为一些transform需要PIL Image作为输入
+        transforms.Resize((256, 256)),  # 可选：调整大小
+        transforms.ToTensor(),          # 转换为Tensor
+        # transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5)) # 可选：归一化
+    ])
+    # train_data = MyDataset(args.data, img_size=args.img_size)
+
+    train_data = LowLightDataset(
+        image_dir=args.data, transform=transform, phase="train")
 
     train_loader = DataLoader(train_data,
                               batch_size=args.batch_size,
@@ -96,6 +105,15 @@ def train(args):
                               shuffle=True,
                               drop_last=True)
     assert len(train_loader) != 0, 'no data loaded'
+
+    test_data = LowLightDataset(
+        image_dir=args.data, transform=transform, phase="test")
+
+    test_loader = DataLoader(test_data,
+                             batch_size=args.batch_size,
+                             num_workers=args.num_workers,
+                             shuffle=False,
+                             drop_last=False)
 
     d_optimizer, g_optimizer = get_opt(args, generator, discriminator)
 
@@ -113,15 +131,11 @@ def train(args):
         cudnn.deterministic = True
 
     # 开始训练
-    discriminator.train()
-    generator.train()
     epoch = 0
     while epoch < args.epochs:
         # 参数储存
-        Ssim = [0.]
         source_g = [0.]
-        fake_tensor = torch.zeros(
-            (args.batch_size, 3, args.img_size[0], args.img_size[1]))
+
         d_g_z2 = 0.
         # 储存loss 判断模型好坏
         gen_loss = []
@@ -149,32 +163,21 @@ def train(args):
         print('第{}轮训练'.format(epoch + 1))
         pbar = tqdm(enumerate(train_loader), total=len(train_loader),
                     bar_format='{l_bar}{bar:10}| {n_fmt}/{total_fmt} {elapsed}', colour='#8762A5')
-        for data in pbar:
-            target, (img, _) = data
-            # 对输入图像进行处理
-            img_lab = PSrgb2lab(img)
-            gray, a, b = torch.split(img_lab, 1, 1)
-            color = torch.cat([a, b], dim=1)
+        for i, (low_images, high_images) in pbar:
+            discriminator.train()
+            generator.train()
             # lamb = color.abs().max()  # 取绝对值最大值，避免负数超出索引
-            lamb = 128.
-            gray = gray.to(device)
-            color = color.to(device)
-
-            with autocast(enabled=args.amp):
+            lamb = 255.
+            low_images = low_images.to(device)
+            high_images = high_images.to(device)
+            with autocast(device_type=args.device, enabled=args.amp):
                 d_optimizer.zero_grad()
                 g_optimizer.zero_grad()
 
                 '''---------------训练判别模型---------------'''
-                fake = generator(gray)
+                fake = generator(low_images/lamb)
                 fake_inputs = discriminator(fake.detach())
-                real_inputs = discriminator(color / lamb)
-
-                # 图像拼接还原
-                fake_tensor = torch.zeros_like(img, dtype=torch.float32)
-                fake_tensor[:, 0, :, :] = gray[:, 0, :, :]  # 主要切片位置
-                fake_tensor[:, 1:, :, :] = lamb * fake
-
-                fake_img = PSlab2rgb(fake_tensor)
+                real_inputs = discriminator(high_images/lamb)
 
                 real_lable = torch.ones_like(
                     fake_inputs.detach(), requires_grad=False)
@@ -196,7 +199,7 @@ def train(args):
                 fake_inputs = discriminator(fake.detach())
                 # G 希望 fake 为 1 加上 psn及 ssim相似损失
                 g_output = (g_loss(fake_inputs, real_lable) +
-                            stable_loss(fake, color / lamb)) / 2.
+                            stable_loss(fake, high_images)) / 2.
                 g_output.backward()
                 d_g_z2 = fake_inputs.mean().item()
                 torch.nn.utils.clip_grad_norm_(generator.parameters(), 5)
@@ -208,7 +211,7 @@ def train(args):
             source_g.append(d_g_z2)
             pbar.set_description('||Epoch: [%d/%d]|--|--|Batch: [%d/%d]|--|--|Loss_D: %.4f|--|--|Loss_G: '
                                  '%.4f|--|--|--|D(x): %.4f|--|--|D(G(z)): %.4f / %.4f|'
-                                 % (epoch + 1, args.epochs, target + 1, len(train_loader),
+                                 % (epoch + 1, args.epochs, i + 1, len(train_loader),
                                     d_output, g_output.item(), d_x, d_g_z1, d_g_z2))
 
             g_checkpoint = {
@@ -226,16 +229,29 @@ def train(args):
             torch.save(g_checkpoint, path + '/generator/last.pt')
             torch.save(d_checkpoint, path + '/discriminator/last.pt')
         # eval model
-        if (epoch + 1) % 10 == 0 and (epoch + 1) >= 10:
-            print("Evaluating the generator model")
-            ssim_source = ssim(fake_tensor, img)
-            psn = peak_signal_noise_ratio(fake_img, img, data_range=255.)
-            if ssim_source.item() > max(Ssim):
-                torch.save(g_checkpoint, path + '/generator/best.pt')
-                torch.save(d_checkpoint, path + '/discriminator/best.pt')
-            Ssim.append(ssim_source.item())
-            print("Model SSIM : {}          PSN: {}".format(
-                ssim_source.item(), psn.item()))
+
+        if (epoch + 1) % 1 == 0 and (epoch + 1) >= 1:
+            with torch.no_grad():
+                print("Evaluating the generator model")
+                generator.eval()
+                discriminator.eval()
+                Ssim = [0.]
+                PSN = [0.]
+                for i, (low_images, high_images) in enumerate(test_loader):
+                    low_images = low_images.to(device)
+                    high_images = high_images.to(device)
+                    fake_eval = generator(low_images / lamb)
+                    ssim_source = ssim(fake_eval, high_images)
+                    print(ssim_source.item())
+                    psn = peak_signal_noise_ratio(fake_eval, high_images)
+                    if ssim_source.item() > max(Ssim):
+                        torch.save(g_checkpoint, path + '/generator/best.pt')
+                        torch.save(d_checkpoint, path +
+                                   '/discriminator/best.pt')
+                    Ssim.append(ssim_source.item())
+                    PSN.append(psn.item())
+                print("Model SSIM : {}          PSN: {}".format(
+                    np.mean(Ssim), np.mean(PSN)))
 
         # 写入日志文件
         to_write = train_log_txt_formatter.format(time_str=time.strftime("%Y_%m_%d_%H:%M:%S"),
@@ -259,8 +275,8 @@ def train(args):
         log.add_scalar('learning rate', g_optimizer.state_dict()
                        ['param_groups'][0]['lr'], epoch + 1)
         log.add_scalar('SSIM', np.mean(Ssim), epoch + 1)
-        log.add_images('real', img, epoch + 1)
-        log.add_images('fake', fake_img, epoch + 1)
+        log.add_images('real', high_images, epoch + 1)
+        log.add_images('fake', fake, epoch + 1)
         epoch += 1
         pbar.close()
     log.close()
@@ -280,7 +296,15 @@ def predict(self):
     checkpoint = torch.load(self.model)
     model.load_state_dict(checkpoint['net'])
     model.to(device)
-    test_data = MyDataset(self.data, self.img_size)
+
+    transform = transforms.Compose([
+        transforms.ToPILImage(),  # 先转换为PIL Image, 因为一些transform需要PIL Image作为输入
+        transforms.Resize((256, 256)),  # 可选：调整大小
+        transforms.ToTensor(),          # 转换为Tensor
+        # transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5)) # 可选：归一化
+    ])  # 图像转换
+    test_data = LowLightDataset(
+        image_dir=self.data, transform=transform, phase="test")
     img_pil = transforms.ToPILImage()
     test_loader = DataLoader(test_data,
                              batch_size=self.batch_size,
@@ -293,24 +317,17 @@ def predict(self):
     i = 0
     if not os.path.exists(os.path.join(path, 'predictions')):
         os.makedirs(os.path.join(path, 'predictions'))
-    for data in pbar:
-        target, (img, label) = data
+    for i, (low_images, high_images) in pbar:
 
-        img_lab = PSrgb2lab(img)
-        gray, _, _ = torch.split(img_lab, [1, 1, 1], 1)
+        lamb = 255.  # 取绝对值最大值，避免负数超出索引
+        low_images = low_images.to(device) / lamb
+        high_images = high_images.to(device) / lamb
 
-        lamb = 128.  # 取绝对值最大值，避免负数超出索引
-        gray = gray.to(device)
-
-        fake = model(gray)
-        fake_tensor = torch.zeros(
-            (self.batch_size, 3, self.img_size[0], self.img_size[1]), dtype=torch.float32)
-        fake_tensor[:, 0, :, :] = gray[:, 0, :, :]  # 主要切片位置
-        fake_tensor[:, 1:, :, :] = lamb * fake
+        fake = model(low_images)
         for j in range(self.batch_size):
 
             fake_img = np.array(
-                img_pil(PSlab2rgb(fake_tensor)[j]), dtype=np.float32)
+                img_pil(fake[j]), dtype=np.float32)
 
             if i > 10 and i % 10 == 0:  # 图片太多，十轮保存一次
                 img_save_path = os.path.join(
@@ -354,27 +371,16 @@ def predict_live(self):
             frame_pil, np.float32) / 255., dtype=torch.float32).to(device)  # 转为tensor
         frame_pil = torch.unsqueeze(frame_pil, 0).permute(
             0, 3, 1, 2)  # 提升维度--转换维度
-        frame_lab = PSrgb2lab(frame_pil)  # 转为LAB
-        gray, _, _ = torch.split(frame_lab, [1, 1, 1], 1)
-
-        fake_ab = model(gray)
-        fake_ab = fake_ab.permute(0, 2, 3, 1).detach().cpu().numpy()[
-            0].astype(np.float32)
-        fake = np.zeros(
-            (self.img_size[0], self.img_size[1], 3), dtype=np.float32)
-        fake[:, :, 0] = gray.permute(
-            0, 2, 3, 1).detach().cpu().numpy()[0][:, :, 0]
-        fake[:, :, 1:] = fake_ab * 128
-        fake = cv2.cvtColor(fake, cv2.COLOR_Lab2BGR)
+        fake = model(frame_pil)
+        fake = fake.squeeze(0).permute(1, 2, 0).cpu().numpy()
         # fake *= 255.
         fake = cv2.resize(fake, (640, 480))  # 维度还没降下来
         cv2.imshow('fake', fake)
 
-        cv2.imshow('gray', cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY))
+        cv2.imshow('origin', cv2.cvtColor(frame, cv2.COLOR_BGR2RGB))
 
         # 写入文件
         # float转uint8 fake[0,1]转[0,255]
-        fake = np.array(255 * fake, dtype=np.uint8)
         write.write(fake)
 
         key = cv2.waitKey(1)

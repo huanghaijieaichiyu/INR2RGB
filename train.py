@@ -6,7 +6,7 @@ import random
 def args():
     parser = argparse.ArgumentParser()  # 命令行选项、参数和子命令解析器
     parser.add_argument("--data", type=str,
-                        default='../datasets/nuscenes/samples/CAM_FRONT', help="path to dataset")
+                        default='../datasets/LOLdataset', help="path to dataset")
     parser.add_argument("--epochs", type=int, default=1000,
                         help="number of epochs of training")  # 迭代次数
     parser.add_argument("--batch_size", type=int, default=16,
@@ -15,14 +15,14 @@ def args():
                         default=(256, 256), help="size of the image")
     parser.add_argument("--optimizer", type=str, default='Adam',
                         choices=['AdamW', 'SGD', 'Adam', 'lion', 'rmp'])
-    parser.add_argument("--num_workers", type=int, default=10,
+    parser.add_argument("--num_workers", type=int, default=0,
                         help="number of data loading workers, if in windows, must be 0"
                         )
     parser.add_argument("--seed", type=int,
                         default=random.randint(1, 100000), help="random seed")
     parser.add_argument("--resume", type=str,
                         default='', help="path to two latest checkpoint.")
-    parser.add_argument("--amp", type=bool, default=True,
+    parser.add_argument("--amp", type=bool, default=False,
                         help="Whether to use amp in mixed precision")
     parser.add_argument("--cuDNN", type=bool, default=True,
                         help="Wether use cuDNN to celerate your program")

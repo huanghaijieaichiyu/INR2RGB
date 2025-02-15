@@ -3,6 +3,9 @@ This package implements the Repvit model, copy from the :https://github.com/THU-
 """
 
 
+from timm.models.vision_transformer import trunc_normal_
+import torch
+from timm.models.layers import SqueezeExcite
 import torch.nn as nn
 
 
@@ -26,11 +29,6 @@ def _make_divisible(v, divisor, min_value=None):
     return new_v
 
 
-from timm.models.layers import SqueezeExcite
-
-import torch
-
-
 class Conv2d_BN(torch.nn.Sequential):
     def __init__(self, a, b, ks=1, stride=1, pad=0, dilation=1,
                  groups=1, bn_weight_init=1, resolution=-10000):
@@ -50,8 +48,8 @@ class Conv2d_BN(torch.nn.Sequential):
             (bn.running_var + bn.eps) ** 0.5
         m = torch.nn.Conv2d(w.size(1) * self.c.groups, w.size(
             0), w.shape[2:], stride=self.c.stride, padding=self.c.padding, dilation=self.c.dilation,
-                            groups=self.c.groups,
-                            device=c.weight.device)
+            groups=self.c.groups,
+            device=c.weight.device)
         m.weight.data.copy_(w)
         m.bias.data.copy_(b)
         return m
@@ -142,7 +140,8 @@ class RepViTBlock(nn.Module):
 
         if stride == 2:
             self.token_mixer = nn.Sequential(
-                Conv2d_BN(inp, inp, kernel_size, stride, (kernel_size - 1) // 2, groups=inp),
+                Conv2d_BN(inp, inp, kernel_size, stride,
+                          (kernel_size - 1) // 2, groups=inp),
                 SqueezeExcite(inp, 0.25) if use_se else nn.Identity(),
                 Conv2d_BN(inp, oup, ks=1, stride=1, pad=0)
             )
@@ -169,9 +168,6 @@ class RepViTBlock(nn.Module):
 
     def forward(self, x):
         return self.channel_mixer(self.token_mixer(x))
-
-
-from timm.models.vision_transformer import trunc_normal_
 
 
 class BN_Linear(torch.nn.Sequential):
@@ -203,10 +199,12 @@ class BN_Linear(torch.nn.Sequential):
 class Classfier(nn.Module):
     def __init__(self, dim, num_classes, distillation=True):
         super().__init__()
-        self.classifier = BN_Linear(dim, num_classes) if num_classes > 0 else torch.nn.Identity()
+        self.classifier = BN_Linear(
+            dim, num_classes) if num_classes > 0 else torch.nn.Identity()
         self.distillation = distillation
         if distillation:
-            self.classifier_dist = BN_Linear(dim, num_classes) if num_classes > 0 else torch.nn.Identity()
+            self.classifier_dist = BN_Linear(
+                dim, num_classes) if num_classes > 0 else torch.nn.Identity()
 
     def forward(self, x):
         if self.distillation:
@@ -247,7 +245,8 @@ class RepViT(nn.Module):
         for k, t, c, use_se, use_hs, s in self.cfgs:
             output_channel = _make_divisible(c, 8)
             exp_size = _make_divisible(input_channel * t, 8)
-            layers.append(block(input_channel, exp_size, output_channel, k, s, use_se, use_hs))
+            layers.append(block(input_channel, exp_size,
+                          output_channel, k, s, use_se, use_hs))
             input_channel = output_channel
         self.features = nn.ModuleList(layers)
         self.classifier = Classfier(output_channel, num_classes, distillation)
@@ -259,292 +258,3 @@ class RepViT(nn.Module):
         x = torch.nn.functional.adaptive_avg_pool2d(x, 1).flatten(1)
         x = self.classifier(x)
         return x
-
-
-from timm.models import register_model
-
-
-@register_model
-def repvit_m0_6(pretrained=False, num_classes=1000, distillation=False):
-    """
-    Constructs a MobileNetV3-Large model
-    """
-    cfgs = [
-        [3, 2, 40, 1, 0, 1],
-        [3, 2, 40, 0, 0, 1],
-        [3, 2, 80, 0, 0, 2],
-        [3, 2, 80, 1, 0, 1],
-        [3, 2, 80, 0, 0, 1],
-        [3, 2, 160, 0, 1, 2],
-        [3, 2, 160, 1, 1, 1],
-        [3, 2, 160, 0, 1, 1],
-        [3, 2, 160, 1, 1, 1],
-        [3, 2, 160, 0, 1, 1],
-        [3, 2, 160, 1, 1, 1],
-        [3, 2, 160, 0, 1, 1],
-        [3, 2, 160, 1, 1, 1],
-        [3, 2, 160, 0, 1, 1],
-        [3, 2, 160, 0, 1, 1],
-        [3, 2, 320, 0, 1, 2],
-        [3, 2, 320, 1, 1, 1],
-    ]
-    return RepViT(cfgs, num_classes=num_classes, distillation=distillation)
-
-
-@register_model
-def repvit_m0_9(pretrained=False, num_classes=1000, distillation=False):
-    """
-    Constructs a MobileNetV3-Large model
-    """
-    cfgs = [
-        # k, t, c, SE, HS, s
-        [3, 2, 48, 1, 0, 1],
-        [3, 2, 48, 0, 0, 1],
-        [3, 2, 48, 0, 0, 1],
-        [3, 2, 96, 0, 0, 2],
-        [3, 2, 96, 1, 0, 1],
-        [3, 2, 96, 0, 0, 1],
-        [3, 2, 96, 0, 0, 1],
-        [3, 2, 192, 0, 1, 2],
-        [3, 2, 192, 1, 1, 1],
-        [3, 2, 192, 0, 1, 1],
-        [3, 2, 192, 1, 1, 1],
-        [3, 2, 192, 0, 1, 1],
-        [3, 2, 192, 1, 1, 1],
-        [3, 2, 192, 0, 1, 1],
-        [3, 2, 192, 1, 1, 1],
-        [3, 2, 192, 0, 1, 1],
-        [3, 2, 192, 1, 1, 1],
-        [3, 2, 192, 0, 1, 1],
-        [3, 2, 192, 1, 1, 1],
-        [3, 2, 192, 0, 1, 1],
-        [3, 2, 192, 1, 1, 1],
-        [3, 2, 192, 0, 1, 1],
-        [3, 2, 192, 0, 1, 1],
-        [3, 2, 384, 0, 1, 2],
-        [3, 2, 384, 1, 1, 1],
-        [3, 2, 384, 0, 1, 1]
-    ]
-    return RepViT(cfgs, num_classes=num_classes, distillation=distillation)
-
-
-@register_model
-def repvit_m1_0(pretrained=False, num_classes=1000, distillation=False):
-    """
-    Constructs a MobileNetV3-Large model
-    """
-    cfgs = [
-        # k, t, c, SE, HS, s
-        [3, 2, 56, 1, 0, 1],
-        [3, 2, 56, 0, 0, 1],
-        [3, 2, 56, 0, 0, 1],
-        [3, 2, 112, 0, 0, 2],
-        [3, 2, 112, 1, 0, 1],
-        [3, 2, 112, 0, 0, 1],
-        [3, 2, 112, 0, 0, 1],
-        [3, 2, 224, 0, 1, 2],
-        [3, 2, 224, 1, 1, 1],
-        [3, 2, 224, 0, 1, 1],
-        [3, 2, 224, 1, 1, 1],
-        [3, 2, 224, 0, 1, 1],
-        [3, 2, 224, 1, 1, 1],
-        [3, 2, 224, 0, 1, 1],
-        [3, 2, 224, 1, 1, 1],
-        [3, 2, 224, 0, 1, 1],
-        [3, 2, 224, 1, 1, 1],
-        [3, 2, 224, 0, 1, 1],
-        [3, 2, 224, 1, 1, 1],
-        [3, 2, 224, 0, 1, 1],
-        [3, 2, 224, 1, 1, 1],
-        [3, 2, 224, 0, 1, 1],
-        [3, 2, 224, 0, 1, 1],
-        [3, 2, 448, 0, 1, 2],
-        [3, 2, 448, 1, 1, 1],
-        [3, 2, 448, 0, 1, 1]
-    ]
-    return RepViT(cfgs, num_classes=num_classes, distillation=distillation)
-
-
-@register_model
-def repvit_m1_1(pretrained=False, num_classes=1000, distillation=False):
-    """
-    Constructs a MobileNetV3-Large model
-    """
-    cfgs = [
-        # k, t, c, SE, HS, s
-        [3, 2, 64, 1, 0, 1],
-        [3, 2, 64, 0, 0, 1],
-        [3, 2, 64, 0, 0, 1],
-        [3, 2, 128, 0, 0, 2],
-        [3, 2, 128, 1, 0, 1],
-        [3, 2, 128, 0, 0, 1],
-        [3, 2, 128, 0, 0, 1],
-        [3, 2, 256, 0, 1, 2],
-        [3, 2, 256, 1, 1, 1],
-        [3, 2, 256, 0, 1, 1],
-        [3, 2, 256, 1, 1, 1],
-        [3, 2, 256, 0, 1, 1],
-        [3, 2, 256, 1, 1, 1],
-        [3, 2, 256, 0, 1, 1],
-        [3, 2, 256, 1, 1, 1],
-        [3, 2, 256, 0, 1, 1],
-        [3, 2, 256, 1, 1, 1],
-        [3, 2, 256, 0, 1, 1],
-        [3, 2, 256, 1, 1, 1],
-        [3, 2, 256, 0, 1, 1],
-        [3, 2, 256, 0, 1, 1],
-        [3, 2, 512, 0, 1, 2],
-        [3, 2, 512, 1, 1, 1],
-        [3, 2, 512, 0, 1, 1]
-    ]
-    return RepViT(cfgs, num_classes=num_classes, distillation=distillation)
-
-
-@register_model
-def repvit_m1_5(pretrained=False, num_classes=1000, distillation=False):
-    """
-    Constructs a MobileNetV3-Large model
-    """
-    cfgs = [
-        # k, t, c, SE, HS, s
-        [3, 2, 64, 1, 0, 1],
-        [3, 2, 64, 0, 0, 1],
-        [3, 2, 64, 1, 0, 1],
-        [3, 2, 64, 0, 0, 1],
-        [3, 2, 64, 0, 0, 1],
-        [3, 2, 128, 0, 0, 2],
-        [3, 2, 128, 1, 0, 1],
-        [3, 2, 128, 0, 0, 1],
-        [3, 2, 128, 1, 0, 1],
-        [3, 2, 128, 0, 0, 1],
-        [3, 2, 128, 0, 0, 1],
-        [3, 2, 256, 0, 1, 2],
-        [3, 2, 256, 1, 1, 1],
-        [3, 2, 256, 0, 1, 1],
-        [3, 2, 256, 1, 1, 1],
-        [3, 2, 256, 0, 1, 1],
-        [3, 2, 256, 1, 1, 1],
-        [3, 2, 256, 0, 1, 1],
-        [3, 2, 256, 1, 1, 1],
-        [3, 2, 256, 0, 1, 1],
-        [3, 2, 256, 1, 1, 1],
-        [3, 2, 256, 0, 1, 1],
-        [3, 2, 256, 1, 1, 1],
-        [3, 2, 256, 0, 1, 1],
-        [3, 2, 256, 1, 1, 1],
-        [3, 2, 256, 0, 1, 1],
-        [3, 2, 256, 1, 1, 1],
-        [3, 2, 256, 0, 1, 1],
-        [3, 2, 256, 1, 1, 1],
-        [3, 2, 256, 0, 1, 1],
-        [3, 2, 256, 1, 1, 1],
-        [3, 2, 256, 0, 1, 1],
-        [3, 2, 256, 1, 1, 1],
-        [3, 2, 256, 0, 1, 1],
-        [3, 2, 256, 1, 1, 1],
-        [3, 2, 256, 0, 1, 1],
-        [3, 2, 256, 0, 1, 1],
-        [3, 2, 512, 0, 1, 2],
-        [3, 2, 512, 1, 1, 1],
-        [3, 2, 512, 0, 1, 1],
-        [3, 2, 512, 1, 1, 1],
-        [3, 2, 512, 0, 1, 1]
-    ]
-    return RepViT(cfgs, num_classes=num_classes, distillation=distillation)
-
-
-@register_model
-def repvit_m2_3(pretrained=False, num_classes=1000, distillation=False):
-    """
-    Constructs a MobileNetV3-Large model
-    """
-    cfgs = [
-        # k, t, c, SE, HS, s
-        [3, 2, 80, 1, 0, 1],
-        [3, 2, 80, 0, 0, 1],
-        [3, 2, 80, 1, 0, 1],
-        [3, 2, 80, 0, 0, 1],
-        [3, 2, 80, 1, 0, 1],
-        [3, 2, 80, 0, 0, 1],
-        [3, 2, 80, 0, 0, 1],
-        [3, 2, 160, 0, 0, 2],
-        [3, 2, 160, 1, 0, 1],
-        [3, 2, 160, 0, 0, 1],
-        [3, 2, 160, 1, 0, 1],
-        [3, 2, 160, 0, 0, 1],
-        [3, 2, 160, 1, 0, 1],
-        [3, 2, 160, 0, 0, 1],
-        [3, 2, 160, 0, 0, 1],
-        [3, 2, 320, 0, 1, 2],
-        [3, 2, 320, 1, 1, 1],
-        [3, 2, 320, 0, 1, 1],
-        [3, 2, 320, 1, 1, 1],
-        [3, 2, 320, 0, 1, 1],
-        [3, 2, 320, 1, 1, 1],
-        [3, 2, 320, 0, 1, 1],
-        [3, 2, 320, 1, 1, 1],
-        [3, 2, 320, 0, 1, 1],
-        [3, 2, 320, 1, 1, 1],
-        [3, 2, 320, 0, 1, 1],
-        [3, 2, 320, 1, 1, 1],
-        [3, 2, 320, 0, 1, 1],
-        [3, 2, 320, 1, 1, 1],
-        [3, 2, 320, 0, 1, 1],
-        [3, 2, 320, 1, 1, 1],
-        [3, 2, 320, 0, 1, 1],
-        [3, 2, 320, 1, 1, 1],
-        [3, 2, 320, 0, 1, 1],
-        [3, 2, 320, 1, 1, 1],
-        [3, 2, 320, 0, 1, 1],
-        [3, 2, 320, 1, 1, 1],
-        [3, 2, 320, 0, 1, 1],
-        [3, 2, 320, 1, 1, 1],
-        [3, 2, 320, 0, 1, 1],
-        [3, 2, 320, 1, 1, 1],
-        [3, 2, 320, 0, 1, 1],
-        [3, 2, 320, 1, 1, 1],
-        [3, 2, 320, 0, 1, 1],
-        [3, 2, 320, 1, 1, 1],
-        [3, 2, 320, 0, 1, 1],
-        [3, 2, 320, 1, 1, 1],
-        [3, 2, 320, 0, 1, 1],
-        [3, 2, 320, 1, 1, 1],
-        [3, 2, 320, 0, 1, 1],
-        # [3,   2, 320, 1, 1, 1],
-        # [3,   2, 320, 0, 1, 1],
-        [3, 2, 320, 0, 1, 1],
-        [3, 2, 640, 0, 1, 2],
-        [3, 2, 640, 1, 1, 1],
-        [3, 2, 640, 0, 1, 1],
-        # [3,   2, 640, 1, 1, 1],
-        # [3,   2, 640, 0, 1, 1]
-    ]
-    return RepViT(cfgs, num_classes=num_classes, distillation=distillation)
-
-
-@register_model
-def repvit_inr2rgb(pretrained=False, num_classes=2, distillation=False):
-    """
-    Constructs a MobileNetV3-Large model
-    """
-    cfgs = [
-        # k, t, c, SE, HS, s
-        [3, 2, 1, 1, 0, 1],
-        [3, 2, 40, 0, 0, 1],
-        [3, 2, 80, 0, 0, 2],
-        [3, 2, 80, 1, 0, 1],
-        [3, 2, 80, 0, 0, 1],
-        [3, 2, 160, 0, 1, 2],
-        [3, 2, 160, 1, 1, 1],
-        [3, 2, 160, 0, 1, 1],
-        [3, 2, 160, 1, 1, 1],
-        [3, 2, 160, 0, 1, 1],
-        [3, 2, 160, 1, 1, 1],
-        [3, 2, 160, 0, 1, 1],
-        [3, 2, 160, 1, 1, 1],
-        [3, 2, 160, 0, 1, 1],
-        [3, 2, 160, 0, 1, 1],
-        [3, 2, 320, 0, 1, 2],
-        [3, 2, 320, 1, 1, 1],
-    ]
-    return RepViT(cfgs, num_classes=num_classes, distillation=distillation)
