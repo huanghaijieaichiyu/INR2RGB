@@ -134,17 +134,55 @@ class Discriminator(nn.Module):
         return x
 
 
-class DiscriminatorVit(nn.Module):
+class Critic(nn.Module):
+    """
+    :param batch_size: batch size\
+    """
+
     def __init__(self, batch_size=8, img_size=256):
-        super(DiscriminatorVit, self).__init__()
+        super(Critic, self).__init__()
         self.batch_size = batch_size
         ratio = img_size / 256.
-        self.conv_in = RepViTBlock(2, 4, 1, 2)
-        self.layer1 = RepViTBlock(4, 4, 1)
-        self.layer2 = Disconv(4, 1, 3, 1, bn=False, act=False)
+        self.conv_in = nn.Sequential(Disconv(3, 8),
+                                     RepViTBlock(8, 16, 3, 2),  # 128
+                                     )
+        self.conv1 = nn.Sequential(RepViTBlock(16, 32, 3, 2),  # 64
+                                   Disconv(32, 64, ),
+                                   RepViTBlock(64, 32, 3, 2),  # 32
+                                   Disconv(32, 16, ),
+                                   RepViTBlock(16, 8, 3, 2),  # 16
+                                   Disconv(8, 4)
+                                   )
+        self.conv_out = Disconv(4, 1, bn=False, act=False)
+
+        self.flat = nn.Flatten()
+
+        self.liner = nn.Sequential(nn.Linear(math.ceil(16 * ratio) ** 2, 16 * 16),
+                                   nn.LeakyReLU(),
+                                   nn.BatchNorm1d(16 * 16),
+                                   nn.Linear(16 * 16, 8 * 16),
+                                   nn.LeakyReLU(),
+                                   nn.BatchNorm1d(8 * 16),
+                                   nn.Linear(8 * 16, 8 * 8),
+                                   nn.LeakyReLU(),
+                                   nn.BatchNorm1d(8 * 8),
+                                   nn.Linear(8 * 8, 4 * 8),
+                                   nn.LeakyReLU(),
+                                   nn.BatchNorm1d(4 * 8),
+                                   nn.Linear(4 * 8, 8),
+                                   nn.LeakyReLU(),
+                                   nn.BatchNorm1d(8),
+                                   nn.Linear(8, 1))
+
         self.act = nn.Sigmoid()
 
     def forward(self, x):
-
-        return self.act(self.layer2(self.layer1(self.conv_in(x)))).view(
+        """
+        :param x: input image
+        :return: output
+        """
+        x = self.act(self.liner(self.flat(self.conv_out(self.conv1(self.conv_in(x)))))).view(
             self.batch_size if x.shape[0] == self.batch_size else x.shape[0], -1)
+        '''x = self.conv_out(self.conv1(self.conv_in(x))).view(
+            self.batch_size if x.shape[0] == self.batch_size else x.shape[0], -1)'''
+        return x

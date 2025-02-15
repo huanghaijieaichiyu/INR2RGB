@@ -1,5 +1,5 @@
 import argparse
-from engine import train
+from engine import train, train_WGAN
 import random
 
 
@@ -44,7 +44,8 @@ def args():
                         help="adam: decay of first order momentum of gradient")  # 动量梯度下降第一个参数
     parser.add_argument("--b2", type=float, default=0.999,
                         help="adam: decay of first order momentum of gradient")  # 动量梯度下降第二个参数
-
+    parser.add_argument("--weight_decay", type=float, default=0.0005,
+                        help="~~")  # 每次迭代的训练步数
     parser.add_argument("--device", type=str, default='cuda', choices=['cpu', 'cuda'],
                         help="select your device to train, if you have a gpu, use 'cuda:0'!")  # 训练设备
     parser.add_argument("--save_path", type=str, default='runs/',
@@ -63,4 +64,4 @@ def args():
 
 if __name__ == '__main__':
     arges = args()
-    train(arges)
+    train_WGAN(arges)
