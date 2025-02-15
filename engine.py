@@ -230,7 +230,7 @@ def train(args):
             torch.save(d_checkpoint, path + '/discriminator/last.pt')
         # eval model
 
-        if (epoch + 1) % 1 == 0 and (epoch + 1) >= 1:
+        if (epoch + 1) % 100 == 0 and (epoch + 1) >= 100:
             with torch.no_grad():
                 print("Evaluating the generator model")
                 generator.eval()
