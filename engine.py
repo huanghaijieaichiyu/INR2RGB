@@ -132,6 +132,8 @@ def train(args):
 
     # 开始训练
     epoch = 0
+    Ssim = [0.]
+    PSN = [0.]
     while epoch < args.epochs:
         # 参数储存
         source_g = [0.]
@@ -235,8 +237,7 @@ def train(args):
                 print("Evaluating the generator model")
                 generator.eval()
                 discriminator.eval()
-                Ssim = [0.]
-                PSN = [0.]
+
                 for i, (low_images, high_images) in enumerate(test_loader):
                     low_images = low_images.to(device)
                     high_images = high_images.to(device)
