@@ -44,9 +44,9 @@ def train(args):
     if args.device == 'cuda':
         device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
 
-    log = tensorboard.SummaryWriter(log_dir=os.path.join(args.save_path, 'tensorboard'),
-                                    filename_suffix=str(args.epochs),
-                                    flush_secs=180)
+    log = tensorboard.SummaryWriter(log_dir=args.save_path'),
+                                    filename_suffix = str(args.epochs),
+                                    flush_secs = 180)
     set_random_seed(args.seed, deterministic=args.deterministic,
                     benchmark=args.benchmark)
 
@@ -195,7 +195,7 @@ def train(args):
                 d_fake_output.backward()
                 d_g_z1 = fake_inputs.mean().item()
                 d_output = (d_real_output.item() + d_fake_output.item()) / 2.
-                torch.nn.utils.clip_grad_norm_(discriminator.parameters(), 200)
+                torch.nn.utils.clip_grad_norm_(discriminator.parameters(), 100)
                 d_optimizer.step()
 
                 '''--------------- 训练生成器 ----------------'''
@@ -205,7 +205,7 @@ def train(args):
                             stable_loss(fake, high_images)) / 2.
                 g_output.backward()
                 d_g_z2 = fake_inputs.mean().item()
-                torch.nn.utils.clip_grad_norm_(generator.parameters(), 5)
+                torch.nn.utils.clip_grad_norm_(generator.parameters(), 2)
                 g_optimizer.step()
 
             gen_loss.append(g_output.item())
@@ -294,7 +294,7 @@ def predict(self):
         device = torch.device('cpu')
 
     model = Generator()
-    model_structure(model, (1, self.img_size[0], self.img_size[1]))
+    model_structure(model, (3, self.img_size[0], self.img_size[1]))
     checkpoint = torch.load(self.model)
     model.load_state_dict(checkpoint['net'])
     model.to(device)
@@ -346,11 +346,11 @@ def predict_live(self):
     else:
         device = torch.device('cpu')
     model = Generator(1, 1)
-    model_structure(model, (1, self.img_size[0], self.img_size[1]))
+    model_structure(model, (3, self.img_size[0], self.img_size[1]))
     checkpoint = torch.load(self.model)
     model.load_state_dict(checkpoint['net'])
     model.to(device)
-    cap = cv2.VideoCapture(2)  # 读取图像
+    cap = cv2.VideoCapture(1)  # 读取图像
     fourcc = cv2.VideoWriter.fourcc(*'mp4v')
     write = cv2.VideoWriter()
     write.open(self.save_path + '/fake.mp4', fourcc=fourcc, fps=cap.get(cv2.CAP_PROP_FPS), isColor=True,
@@ -374,7 +374,7 @@ def predict_live(self):
         frame_pil = torch.unsqueeze(frame_pil, 0).permute(
             0, 3, 1, 2)  # 提升维度--转换维度
         fake = model(frame_pil)
-        fake = fake.squeeze(0).permute(1, 2, 0).cpu().numpy()
+        fake = fake.squeeze(0).permute(1, 2, 0).cpu().detach().numpy()
         # fake *= 255.
         fake = cv2.resize(fake, (640, 480))  # 维度还没降下来
         cv2.imshow('fake', fake)

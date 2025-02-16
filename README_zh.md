@@ -1,9 +1,4 @@
-# DeepTransformerGAN-DTGAN：低照度图像修复
-
-## Languages
-
-*   [English](README_en.md)
-
+# INR2RGB：灰度图像着色
 
 本项目实现了一种深度学习方法，用于对灰度图像进行着色。它使用了一种改进的DCGAN（深度卷积生成对抗网络）架构，具有自注意力机制、跨层连接和残差块。该模型在转换为LAB颜色空间的RGB图像上进行训练，使用A和B通道作为颜色信息标签。
 

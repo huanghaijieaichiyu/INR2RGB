@@ -7,7 +7,7 @@ def args():
     parser = argparse.ArgumentParser()  # 命令行选项、参数和子命令解析器
     parser.add_argument("--data", type=str,
                         default='../datasets/LOLdataset', help="path to dataset")
-    parser.add_argument("--epochs", type=int, default=1000,
+    parser.add_argument("--epochs", type=int, default=500,
                         help="number of epochs of training")  # 迭代次数
     parser.add_argument("--batch_size", type=int, default=16,
                         help="size of the batches")  # batch大小
@@ -64,4 +64,4 @@ def args():
 
 if __name__ == '__main__':
     arges = args()
-    train_WGAN(arges)
+    train(arges)
