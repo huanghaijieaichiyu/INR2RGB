@@ -24,7 +24,7 @@ def args():
                         default='', help="path to two latest checkpoint.")
     parser.add_argument("--amp", type=bool, default=False,
                         help="Whether to use amp in mixed precision")
-    parser.add_argument("--cuDNN", type=bool, default=True,
+    parser.add_argument("--cuDNN", type=bool, default=False,
                         help="Wether use cuDNN to celerate your program")
     parser.add_argument("--loss", type=str, default='bce',
                         choices=['BCEBlurWithLogitsLoss', 'mse', 'bce',

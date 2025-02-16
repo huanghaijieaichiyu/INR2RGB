@@ -44,9 +44,9 @@ def train(args):
     if args.device == 'cuda':
         device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
 
-    log = tensorboard.SummaryWriter(log_dir=args.save_path'),
-                                    filename_suffix = str(args.epochs),
-                                    flush_secs = 180)
+    log = tensorboard.SummaryWriter(log_dir=args.save_path,
+                                    filename_suffix=str(args.epochs),
+                                    flush_secs=180)
     set_random_seed(args.seed, deterministic=args.deterministic,
                     benchmark=args.benchmark)
 
@@ -121,7 +121,7 @@ def train(args):
     g_loss = get_loss(args.loss)
     stable_loss = nn.MSELoss()
     g_loss = g_loss.to(device)
-    d_loss = BCEBlurWithLogitsLoss()
+    d_loss = nn.BCEWithLogitsLoss()
     d_loss.to(device)
     stable_loss.to(device)
     # 此处开始训练
@@ -135,6 +135,8 @@ def train(args):
     epoch = 0
     Ssim = [0.]
     PSN = [0.]
+    generator.train()
+    discriminator.train()
     while epoch < args.epochs:
         # 参数储存
         source_g = [0.]
@@ -195,7 +197,7 @@ def train(args):
                 d_fake_output.backward()
                 d_g_z1 = fake_inputs.mean().item()
                 d_output = (d_real_output.item() + d_fake_output.item()) / 2.
-                torch.nn.utils.clip_grad_norm_(discriminator.parameters(), 100)
+                torch.nn.utils.clip_grad_norm_(discriminator.parameters(), 500)
                 d_optimizer.step()
 
                 '''--------------- 训练生成器 ----------------'''
@@ -205,7 +207,7 @@ def train(args):
                             stable_loss(fake, high_images)) / 2.
                 g_output.backward()
                 d_g_z2 = fake_inputs.mean().item()
-                torch.nn.utils.clip_grad_norm_(generator.parameters(), 2)
+                torch.nn.utils.clip_grad_norm_(generator.parameters(), 5)
                 g_optimizer.step()
 
             gen_loss.append(g_output.item())
