@@ -584,57 +584,59 @@ def train_WGAN(args):
                     (torch.mean(critic_real) - torch.mean(critic_fake)) + \
                     lambda_gp * gradient_penalty
 
-                loss_critic.backward()
-                c_optimizer.step()  # 修改: d_optimizer -> c_optimizer
                 # ---------------------
                 # 训练生成器
                 # ---------------------
-                if epoch >= n_critic:
 
-                    fake_images = generator(low_images)
-                    # 修改：fake_inputs = discriminator(fake.detach()) -> critic
-                    critic_fake = critic(fake_images)
+                fake_images = generator(low_images)
+                # 修改：fake_inputs = discriminator(fake.detach()) -> critic
+                critic_fake = critic(fake_images)
 
-                    # 生成器损失
-                    # g_output = (g_loss(fake_inputs, real_lable) + stable_loss(fake, high_images)) / 2. # 旧的 g_output
-                    # 修改：g_loss -> loss_generator.  加上 stable_loss
-                    loss_generator = - \
-                        torch.mean(critic_fake) + \
-                        stable_loss(fake_images, high_images)
+                # 生成器损失
+                # g_output = (g_loss(fake_inputs, real_lable) + stable_loss(fake, high_images)) / 2. # 旧的 g_output
+                # 修改：g_loss -> loss_generator.  加上 stable_loss
+                loss_generator = - \
+                    torch.mean(critic_fake) + \
+                    stable_loss(fake_images, high_images)
 
-                    loss_generator.backward()
-                    g_optimizer.step()
+                # 参数一起更新
+                '''----网络上的cycleGAN是分开更新的，分开更新效果奇差
+                ，且不稳定，我觉得是因为两个模型独立更新梯度的话，两个
+                模型并没有像对抗训练那样的对抗关系，因此在尝试合并更新
+                梯度后，发现稳定性与准确性都有及大幅度的提升'''
+                loss_critic.backward()
+                c_optimizer.step()  # 修改: d_optimizer -> c_optimizer
+                loss_generator.backward()
+                g_optimizer.step()
 
-                    # 修改：g_output.item() -> loss_generator.item()
-                    gen_loss.append(loss_generator.item())
-                    # 修改：dis_loss -> critic_loss,  d_output -> loss_critic.item()
-                    critic_loss.append(loss_critic.item())
+                # 修改：g_output.item() -> loss_generator.item()
+                gen_loss.append(loss_generator.item())
+                # 修改：dis_loss -> critic_loss,  d_output -> loss_critic.item()
+                critic_loss.append(loss_critic.item())
 
-                    g_z = critic_fake.mean().item()  # 修改：d_g_z2 -> g_z
-                    source_g.append(g_z)  # 修改: d_g_z2 -> g_z
-                    pbar.set_description('||Epoch: [%d/%d]|--|--|Batch: [%d/%d]|--|--|Loss_C: %.4f|--|--|Loss_G: '  # 修改：Loss_D -> Loss_C
-                                         # 修改：D(x), D(G(z)) -> G(z)
-                                         '%.4f|--|--|--|D(x): N/A|--|--|G(z): %.4f|'
-                                         % (epoch + 1, args.epochs, i + 1, len(train_loader),
-                                            loss_critic.item(), loss_generator.item(), g_z))  # 修改：d_output -> loss_critic.item(), g_output.item() -> loss_generator.item(), d_x, d_g_z1, d_g_z2 -> g_z
+                g_z = critic_fake.mean().item()  # 修改：d_g_z2 -> g_z
+                source_g.append(g_z)  # 修改: d_g_z2 -> g_z
+                pbar.set_description('||Epoch: [%d/%d]|--|--|Batch: [%d/%d]|--|--|Loss_C: %.4f|--|--|Loss_G: '  # 修改：Loss_D -> Loss_C
+                                     # 修改：D(x), D(G(z)) -> G(z)
+                                     '%.4f|--|--|--|D(x): N/A|--|--|G(z): %.4f|'
+                                     % (epoch + 1, args.epochs, i + 1, len(train_loader),
+                                        loss_critic.item(), loss_generator.item(), g_z))  # 修改：d_output -> loss_critic.item(), g_output.item() -> loss_generator.item(), d_x, d_g_z1, d_g_z2 -> g_z
 
-                    g_checkpoint = {
-                        'net': generator.state_dict(),
-                        'optimizer': g_optimizer.state_dict(),
-                        'epoch': epoch,
-                        # 'loss': g_loss.state_dict() # 旧的 loss
-                    }
-                    d_checkpoint = {
-                        'net': critic.state_dict(),  # 修改: discriminator -> critic
-                        'optimizer': c_optimizer.state_dict(),  # 修改: d_optimizer -> c_optimizer
-                        'epoch': epoch,
-                        # 'loss': d_loss.state_dict() # 旧的 loss
-                    }
-                    torch.save(g_checkpoint, path + '/generator/last.pt')
-                    # 修改: discriminator -> critic
-                    torch.save(d_checkpoint, path + '/critic/last.pt')
-                else:
-                    pbar.set_description('判别器预热训练中')
+                g_checkpoint = {
+                    'net': generator.state_dict(),
+                    'optimizer': g_optimizer.state_dict(),
+                    'epoch': epoch,
+                    # 'loss': g_loss.state_dict() # 旧的 loss
+                }
+                d_checkpoint = {
+                    'net': critic.state_dict(),  # 修改: discriminator -> critic
+                    'optimizer': c_optimizer.state_dict(),  # 修改: d_optimizer -> c_optimizer
+                    'epoch': epoch,
+                    # 'loss': d_loss.state_dict() # 旧的 loss
+                }
+                torch.save(g_checkpoint, path + '/generator/last.pt')
+                # 修改: discriminator -> critic
+                torch.save(d_checkpoint, path + '/critic/last.pt')
         # eval model
 
         if (epoch + 1) % 100 == 0 and (epoch + 1) >= 100:
