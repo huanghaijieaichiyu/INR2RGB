@@ -119,8 +119,8 @@ python predict.py --data 0 --model runs/train(3)/generator/last.pt
     <td><b>真实图像 (real.png)</b></td>
   </tr>
   <tr>
-    <td><img src="fake.png" width="600"></td>  <!-- 放大图像宽度 -->
-    <td><img src="real.png" width="600"></td>  <!-- 放大图像宽度 -->
+    <td><img src="fake.png" width="1200"></td>  <!-- 放大图像宽度 -->
+    <td><img src="real.png" width="1200"></td>  <!-- 放大图像宽度 -->
   </tr>
 </table>
 

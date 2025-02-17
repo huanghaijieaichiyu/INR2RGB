@@ -1,6 +1,8 @@
+from math import e
 import os
 from re import S
 import time
+from turtle import st
 
 import cv2
 import numpy as np
@@ -17,9 +19,8 @@ from tqdm import tqdm
 
 from datasets.data_set import LowLightDataset
 from models.base_mode import Generator, Discriminator, Critic
-from utils.color_trans import PSlab2rgb, PSrgb2lab
 from utils.loss import BCEBlurWithLogitsLoss
-from utils.misic import set_random_seed, get_opt, get_loss, ssim, model_structure, save_path
+from utils.misic import set_random_seed, get_opt, get_loss, ssim, model_structure, save_path  # type: ignore
 
 
 def train(args):
@@ -44,9 +45,9 @@ def train(args):
     if args.device == 'cuda':
         device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
 
-    log = tensorboard.SummaryWriter(log_dir=os.path.join(args.save_path, 'tensorboard'),
-                                    filename_suffix=str(args.epochs),
-                                    flush_secs=180)
+    log = tensorboard.writer.SummaryWriter(log_dir=path,
+                                           filename_suffix=str(args.epochs),
+                                           flush_secs=180)
     set_random_seed(args.seed, deterministic=args.deterministic,
                     benchmark=args.benchmark)
 
@@ -93,7 +94,7 @@ def train(args):
         transforms.ToPILImage(),  # 先转换为PIL Image, 因为一些transform需要PIL Image作为输入
         transforms.Resize((256, 256)),  # 可选：调整大小
         transforms.ToTensor(),          # 转换为Tensor
-        # transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5)) # 可选：归一化
+        transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))  # 可选：归一化
     ])
     # train_data = MyDataset(args.data, img_size=args.img_size)
 
@@ -117,7 +118,6 @@ def train(args):
                              drop_last=False)
 
     d_optimizer, g_optimizer = get_opt(args, generator, discriminator)
-
     g_loss = get_loss(args.loss)
     stable_loss = nn.MSELoss()
     g_loss = g_loss.to(device)
@@ -135,10 +135,13 @@ def train(args):
     epoch = 0
     Ssim = [0.]
     PSN = [0.]
+
     while epoch < args.epochs:
+        discriminator.train()
+        generator.train()
         # 参数储存
         source_g = [0.]
-
+        n_discriminator = 1  # 每训练一次生成器，训练 n_discriminator 次判别器
         d_g_z2 = 0.
         # 储存loss 判断模型好坏
         gen_loss = []
@@ -167,20 +170,18 @@ def train(args):
         pbar = tqdm(enumerate(train_loader), total=len(train_loader),
                     bar_format='{l_bar}{bar:10}| {n_fmt}/{total_fmt} {elapsed}', colour='#8762A5')
         for i, (low_images, high_images) in pbar:
-            discriminator.train()
-            generator.train()
+
             # lamb = color.abs().max()  # 取绝对值最大值，避免负数超出索引
-            lamb = 255.
             low_images = low_images.to(device)
             high_images = high_images.to(device)
+
             with autocast(device_type=args.device, enabled=args.amp):
+                '''---------------训练判别模型---------------'''
                 d_optimizer.zero_grad()
                 g_optimizer.zero_grad()
-
-                '''---------------训练判别模型---------------'''
-                fake = generator(low_images/lamb)
+                fake = generator(low_images)
                 fake_inputs = discriminator(fake.detach())
-                real_inputs = discriminator(high_images/lamb)
+                real_inputs = discriminator(high_images)
 
                 real_lable = torch.ones_like(
                     fake_inputs.detach(), requires_grad=False)
@@ -188,49 +189,55 @@ def train(args):
                     fake_inputs.detach(), requires_grad=False)
                 # D 希望 real_loss 为 1
                 d_real_output = d_loss(real_inputs, real_lable)
-                d_real_output.backward()
                 d_x = real_inputs.mean().item()
                 # D希望 fake_loss 为 0
                 d_fake_output = d_loss(fake_inputs, fake_lable)
-                d_fake_output.backward()
                 d_g_z1 = fake_inputs.mean().item()
-                d_output = (d_real_output.item() + d_fake_output.item()) / 2.
-                torch.nn.utils.clip_grad_norm_(discriminator.parameters(), 200)
-                d_optimizer.step()
+                d_output = (d_real_output.item() +
+                            d_fake_output.item()) / 2.
 
                 '''--------------- 训练生成器 ----------------'''
+                # 延时训练生成器，先对判别器训练, 保证判别器的训练效果
+
                 fake_inputs = discriminator(fake.detach())
                 # G 希望 fake 为 1 加上 psn及 ssim相似损失
-                g_output = (g_loss(fake_inputs, real_lable) +
-                            stable_loss(fake, high_images)) / 2.
+                g_output = g_loss(fake_inputs, real_lable) + stable_loss(
+                    fake, high_images)
+
+                # 参数一起更新
+                d_real_output.backward()
+                d_fake_output.backward()
                 g_output.backward()
                 d_g_z2 = fake_inputs.mean().item()
+                torch.nn.utils.clip_grad_norm_(
+                    discriminator.parameters(), 500)
                 torch.nn.utils.clip_grad_norm_(generator.parameters(), 5)
+                d_optimizer.step()
                 g_optimizer.step()
 
-            gen_loss.append(g_output.item())
-            dis_loss.append(d_output)
+                gen_loss.append(g_output.item())
+                dis_loss.append(d_output)
 
-            source_g.append(d_g_z2)
-            pbar.set_description('||Epoch: [%d/%d]|--|--|Batch: [%d/%d]|--|--|Loss_D: %.4f|--|--|Loss_G: '
-                                 '%.4f|--|--|--|D(x): %.4f|--|--|D(G(z)): %.4f / %.4f|'
-                                 % (epoch + 1, args.epochs, i + 1, len(train_loader),
-                                    d_output, g_output.item(), d_x, d_g_z1, d_g_z2))
+                source_g.append(d_g_z2)
+                pbar.set_description('||Epoch: [%d/%d]|--|--|Batch: [%d/%d]|--|--|Loss_D: %.4f|--|--|Loss_G: '
+                                     '%.4f|--|--|--|D(x): %.4f|--|--|D(G(z)): %.4f / %.4f|'
+                                     % (epoch + 1, args.epochs, i + 1, len(train_loader),
+                                        d_output, g_output.item(), d_x, d_g_z1, d_g_z2))
 
-            g_checkpoint = {
-                'net': generator.state_dict(),
-                'optimizer': g_optimizer.state_dict(),
-                'epoch': epoch,
-                'loss': g_loss.state_dict()
-            }
-            d_checkpoint = {
-                'net': discriminator.state_dict(),
-                'optimizer': d_optimizer.state_dict(),
-                'epoch': epoch,
-                'loss': d_loss.state_dict()
-            }
-            torch.save(g_checkpoint, path + '/generator/last.pt')
-            torch.save(d_checkpoint, path + '/discriminator/last.pt')
+                g_checkpoint = {
+                    'net': generator.state_dict(),
+                    'optimizer': g_optimizer.state_dict(),
+                    'epoch': epoch,
+                    'loss': g_loss.state_dict()
+                }
+                d_checkpoint = {
+                    'net': discriminator.state_dict(),
+                    'optimizer': d_optimizer.state_dict(),
+                    'epoch': epoch,
+                    'loss': d_loss.state_dict()
+                }
+                torch.save(g_checkpoint, path + '/generator/last.pt')
+                torch.save(d_checkpoint, path + '/discriminator/last.pt')
         # eval model
 
         if (epoch + 1) % 100 == 0 and (epoch + 1) >= 100:
@@ -242,7 +249,7 @@ def train(args):
                 for i, (low_images, high_images) in enumerate(test_loader):
                     low_images = low_images.to(device)
                     high_images = high_images.to(device)
-                    fake_eval = generator(low_images / lamb)
+                    fake_eval = generator(low_images)
                     ssim_source = ssim(fake_eval, high_images)
                     print(ssim_source.item())
                     psn = peak_signal_noise_ratio(fake_eval, high_images)
@@ -294,7 +301,7 @@ def predict(self):
         device = torch.device('cpu')
 
     model = Generator()
-    model_structure(model, (1, self.img_size[0], self.img_size[1]))
+    model_structure(model, (3, self.img_size[0], self.img_size[1]))
     checkpoint = torch.load(self.model)
     model.load_state_dict(checkpoint['net'])
     model.to(device)
@@ -346,11 +353,11 @@ def predict_live(self):
     else:
         device = torch.device('cpu')
     model = Generator(1, 1)
-    model_structure(model, (1, self.img_size[0], self.img_size[1]))
+    model_structure(model, (3, self.img_size[0], self.img_size[1]))
     checkpoint = torch.load(self.model)
     model.load_state_dict(checkpoint['net'])
     model.to(device)
-    cap = cv2.VideoCapture(2)  # 读取图像
+    cap = cv2.VideoCapture(0)  # 读取图像
     fourcc = cv2.VideoWriter.fourcc(*'mp4v')
     write = cv2.VideoWriter()
     write.open(self.save_path + '/fake.mp4', fourcc=fourcc, fps=cap.get(cv2.CAP_PROP_FPS), isColor=True,
@@ -374,12 +381,12 @@ def predict_live(self):
         frame_pil = torch.unsqueeze(frame_pil, 0).permute(
             0, 3, 1, 2)  # 提升维度--转换维度
         fake = model(frame_pil)
-        fake = fake.squeeze(0).permute(1, 2, 0).cpu().numpy()
-        # fake *= 255.
+        fake = fake.squeeze(0).permute(1, 2, 0).cpu().detach().numpy()
+        fake *= 255.
         fake = cv2.resize(fake, (640, 480))  # 维度还没降下来
         cv2.imshow('fake', fake)
 
-        cv2.imshow('origin', cv2.cvtColor(frame, cv2.COLOR_BGR2RGB))
+        cv2.imshow('origin', frame)
 
         # 写入文件
         # float转uint8 fake[0,1]转[0,255]
@@ -416,9 +423,9 @@ def train_WGAN(args):
     if args.device == 'cuda':
         device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
 
-    log = tensorboard.SummaryWriter(log_dir=os.path.join(args.save_path, 'tensorboard'),
-                                    filename_suffix=str(args.epochs),
-                                    flush_secs=180)
+    log = tensorboard.writer.SummaryWriter(log_dir=path,
+                                           filename_suffix=str(args.epochs),
+                                           flush_secs=180)
     set_random_seed(args.seed, deterministic=args.deterministic,
                     benchmark=args.benchmark)
 
@@ -465,7 +472,7 @@ def train_WGAN(args):
         transforms.ToPILImage(),  # 先转换为PIL Image, 因为一些transform需要PIL Image作为输入
         transforms.Resize((args.img_size[0], args.img_size[1])),  # 可选：调整大小
         transforms.ToTensor(),          # 转换为Tensor
-        # transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5)) # 可选：归一化
+        transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))  # 可选：归一化
     ])
     # train_data = MyDataset(args.data, img_size=args.img_size)
 
@@ -500,7 +507,6 @@ def train_WGAN(args):
 
     # WGAN-GP 超参数
     lambda_gp = 10  # 梯度惩罚系数
-    n_critic = 5    # 每训练一次生成器，训练 n_critic 次判别器 (Critic)
 
     # 此处开始训练
     # 使用cuDNN加速训练
@@ -513,6 +519,8 @@ def train_WGAN(args):
     epoch = 0
     Ssim = [0.]
     PSN = [0.]
+    critic.train()  # 修改: discriminator -> critic
+    generator.train()
     while epoch < args.epochs:
         # 参数储存
         source_g = [0.]
@@ -547,10 +555,8 @@ def train_WGAN(args):
         pbar = tqdm(enumerate(train_loader), total=len(train_loader),
                     bar_format='{l_bar}{bar:10}| {n_fmt}/{total_fmt} {elapsed}', colour='#8762A5')
         for i, (low_images, high_images) in pbar:
-            critic.train()  # 修改: discriminator -> critic
-            generator.train()
+
             # lamb = color.abs().max()  # 取绝对值最大值，避免负数超出索引
-            lamb = 255.
             low_images = low_images.to(device)
             high_images = high_images.to(device)
             with autocast(device_type=args.device, enabled=args.amp):
@@ -559,33 +565,29 @@ def train_WGAN(args):
                 # ---------------------
                 # 训练判别器 (Critic)
                 # ---------------------
-                for _ in range(n_critic):
-                    c_optimizer.zero_grad()  # 修改: d_optimizer -> c_optimizer
 
-                    fake_images = generator(low_images/lamb)
+                c_optimizer.zero_grad()  # 修改: d_optimizer -> c_optimizer
+                g_optimizer.zero_grad()  # 旧的 g_optimizer
+                fake_images = generator(low_images)
+                # 修改：real_inputs = discriminator(high_images/lamb) -> critic
+                critic_real = critic(high_images)
+                # 修改：fake_inputs = discriminator(fake.detach()) -> critic
+                critic_fake = critic(fake_images.detach())
 
-                    # 修改：real_inputs = discriminator(high_images/lamb) -> critic
-                    critic_real = critic(high_images/lamb)
-                    # 修改：fake_inputs = discriminator(fake.detach()) -> critic
-                    critic_fake = critic(fake_images.detach())
+                # 计算梯度惩罚
+                gradient_penalty = compute_gradient_penalty(
+                    critic, high_images, fake_images.detach())
 
-                    # 计算梯度惩罚
-                    gradient_penalty = compute_gradient_penalty(
-                        critic, high_images/lamb, fake_images.detach())
+                # Critic 损失
+                loss_critic = - \
+                    (torch.mean(critic_real) - torch.mean(critic_fake)) + \
+                    lambda_gp * gradient_penalty
 
-                    # Critic 损失
-                    loss_critic = - \
-                        (torch.mean(critic_real) - torch.mean(critic_fake)) + \
-                        lambda_gp * gradient_penalty
-
-                    loss_critic.backward()
-                    c_optimizer.step()  # 修改: d_optimizer -> c_optimizer
                 # ---------------------
                 # 训练生成器
                 # ---------------------
-                g_optimizer.zero_grad()  # 旧的 g_optimizer
 
-                fake_images = generator(low_images/lamb)
+                fake_images = generator(low_images)
                 # 修改：fake_inputs = discriminator(fake.detach()) -> critic
                 critic_fake = critic(fake_images)
 
@@ -594,39 +596,46 @@ def train_WGAN(args):
                 # 修改：g_loss -> loss_generator.  加上 stable_loss
                 loss_generator = - \
                     torch.mean(critic_fake) + \
-                    stable_loss(fake_images, high_images/lamb)
+                    stable_loss(fake_images, high_images)
 
+                # 参数一起更新
+                '''----网络上的cycleGAN是分开更新的，分开更新效果奇差
+                ，且不稳定，我觉得是因为两个模型独立更新梯度的话，两个
+                模型并没有像对抗训练那样的对抗关系，因此在尝试合并更新
+                梯度后，发现稳定性与准确性都有及大幅度的提升'''
+                loss_critic.backward()
+                c_optimizer.step()  # 修改: d_optimizer -> c_optimizer
                 loss_generator.backward()
                 g_optimizer.step()
 
-            # 修改：g_output.item() -> loss_generator.item()
-            gen_loss.append(loss_generator.item())
-            # 修改：dis_loss -> critic_loss,  d_output -> loss_critic.item()
-            critic_loss.append(loss_critic.item())
+                # 修改：g_output.item() -> loss_generator.item()
+                gen_loss.append(loss_generator.item())
+                # 修改：dis_loss -> critic_loss,  d_output -> loss_critic.item()
+                critic_loss.append(loss_critic.item())
 
-            g_z = critic_fake.mean().item()  # 修改：d_g_z2 -> g_z
-            source_g.append(g_z)  # 修改: d_g_z2 -> g_z
-            pbar.set_description('||Epoch: [%d/%d]|--|--|Batch: [%d/%d]|--|--|Loss_C: %.4f|--|--|Loss_G: '  # 修改：Loss_D -> Loss_C
-                                 # 修改：D(x), D(G(z)) -> G(z)
-                                 '%.4f|--|--|--|D(x): N/A|--|--|G(z): %.4f|'
-                                 % (epoch + 1, args.epochs, i + 1, len(train_loader),
-                                    loss_critic.item(), loss_generator.item(), g_z))  # 修改：d_output -> loss_critic.item(), g_output.item() -> loss_generator.item(), d_x, d_g_z1, d_g_z2 -> g_z
+                g_z = critic_fake.mean().item()  # 修改：d_g_z2 -> g_z
+                source_g.append(g_z)  # 修改: d_g_z2 -> g_z
+                pbar.set_description('||Epoch: [%d/%d]|--|--|Batch: [%d/%d]|--|--|Loss_C: %.4f|--|--|Loss_G: '  # 修改：Loss_D -> Loss_C
+                                     # 修改：D(x), D(G(z)) -> G(z)
+                                     '%.4f|--|--|--|D(x): N/A|--|--|G(z): %.4f|'
+                                     % (epoch + 1, args.epochs, i + 1, len(train_loader),
+                                        loss_critic.item(), loss_generator.item(), g_z))  # 修改：d_output -> loss_critic.item(), g_output.item() -> loss_generator.item(), d_x, d_g_z1, d_g_z2 -> g_z
 
-            g_checkpoint = {
-                'net': generator.state_dict(),
-                'optimizer': g_optimizer.state_dict(),
-                'epoch': epoch,
-                # 'loss': g_loss.state_dict() # 旧的 loss
-            }
-            d_checkpoint = {
-                'net': critic.state_dict(),  # 修改: discriminator -> critic
-                'optimizer': c_optimizer.state_dict(),  # 修改: d_optimizer -> c_optimizer
-                'epoch': epoch,
-                # 'loss': d_loss.state_dict() # 旧的 loss
-            }
-            torch.save(g_checkpoint, path + '/generator/last.pt')
-            # 修改: discriminator -> critic
-            torch.save(d_checkpoint, path + '/critic/last.pt')
+                g_checkpoint = {
+                    'net': generator.state_dict(),
+                    'optimizer': g_optimizer.state_dict(),
+                    'epoch': epoch,
+                    # 'loss': g_loss.state_dict() # 旧的 loss
+                }
+                d_checkpoint = {
+                    'net': critic.state_dict(),  # 修改: discriminator -> critic
+                    'optimizer': c_optimizer.state_dict(),  # 修改: d_optimizer -> c_optimizer
+                    'epoch': epoch,
+                    # 'loss': d_loss.state_dict() # 旧的 loss
+                }
+                torch.save(g_checkpoint, path + '/generator/last.pt')
+                # 修改: discriminator -> critic
+                torch.save(d_checkpoint, path + '/critic/last.pt')
         # eval model
 
         if (epoch + 1) % 100 == 0 and (epoch + 1) >= 100:
@@ -638,20 +647,20 @@ def train_WGAN(args):
                 for i, (low_images, high_images) in enumerate(test_loader):
                     low_images = low_images.to(device)
                     high_images = high_images.to(device)
-                    fake_eval = generator(low_images / lamb)
-                    # ssim_source = ssim(fake_eval, high_images) # 注释掉 skimage 的 ssim
-                    # psn = peak_signal_noise_ratio(fake_eval, high_images) # 注释掉 skimage 的 psnr
-
-                    # ssim_source = calculate_ssim(fake_eval, high_images) # 使用你自己的 SSIM 计算函数
-                    # psn = calculate_psnr(fake_eval, high_images) # 使用你自己的 PSNR 计算函数
-
-                    # print(ssim_source.item())
-                    # if ssim_source.item() > max(Ssim):
-                    #     torch.save(g_checkpoint, path + '/generator/best.pt')
-                    #     torch.save(d_checkpoint, path + '/critic/best.pt') # 修改: discriminator -> critic
-                    # Ssim.append(ssim_source.item())
-                    # PSN.append(psn.item())
-                # print("Model SSIM : {}          PSN: {}".format(np.mean(Ssim), np.mean(PSN))) # 注释掉
+                fake_eval = generator(low_images)
+                # 注释掉 skimage 的 ssim
+                ssim_source = ssim(fake_eval, high_images)
+                psn = peak_signal_noise_ratio(
+                    fake_eval, high_images)  # 注释掉 skimage 的 psnr
+                print(ssim_source.item())
+                if ssim_source.item() > max(Ssim):
+                    torch.save(g_checkpoint, path + '/generator/best.pt')
+                    # 修改: discriminator -> critic
+                    torch.save(d_checkpoint, path + '/critic/best.pt')
+                Ssim.append(ssim_source.item())
+                PSN.append(psn.item())
+                print("Model SSIM : {}          PSN: {}".format(
+                    np.mean(Ssim), np.mean(PSN)))  # 注释掉
 
         # 写入日志文件
         to_write = train_log_txt_formatter.format(time_str=time.strftime("%Y_%m_%d_%H:%M:%S"),
