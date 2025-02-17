@@ -56,7 +56,7 @@ class Generator(nn.Module):
 
         self.conv9 = Gencov(math.ceil(112 * depth), 3,
                             math.ceil(weight), act=False, bn=False)
-        self.tanh = nn.Tanh()
+        self.tanh = nn.Sigmoid()
         self.concat = Concat()
 
     def forward(self, x):
@@ -159,30 +159,30 @@ class Critic(nn.Module):
 
         self.liner = nn.Sequential(nn.Linear(math.ceil(16 * ratio) ** 2, 16 * 16),
                                    nn.LeakyReLU(),
-                                   nn.BatchNorm1d(16 * 16),
+
                                    nn.Linear(16 * 16, 8 * 16),
                                    nn.LeakyReLU(),
-                                   nn.BatchNorm1d(8 * 16),
+
                                    nn.Linear(8 * 16, 8 * 8),
                                    nn.LeakyReLU(),
-                                   nn.BatchNorm1d(8 * 8),
+
                                    nn.Linear(8 * 8, 4 * 8),
                                    nn.LeakyReLU(),
-                                   nn.BatchNorm1d(4 * 8),
+
                                    nn.Linear(4 * 8, 8),
                                    nn.LeakyReLU(),
-                                   nn.BatchNorm1d(8),
+
                                    nn.Linear(8, 1))
 
-        self.act = nn.Sigmoid()
+        self.act = nn.Identity()
 
     def forward(self, x):
         """
         :param x: input image
         :return: output
         """
-        x = self.act(self.liner(self.flat(self.conv_out(self.conv1(self.conv_in(x)))))).view(
-            self.batch_size if x.shape[0] == self.batch_size else x.shape[0], -1)
-        '''x = self.conv_out(self.conv1(self.conv_in(x))).view(
+        '''x = self.act(self.liner(self.flat(self.conv_out(self.conv1(self.conv_in(x)))))).view(
             self.batch_size if x.shape[0] == self.batch_size else x.shape[0], -1)'''
+        x = self.conv_out(self.conv1(self.conv_in(x))).view(
+            self.batch_size if x.shape[0] == self.batch_size else x.shape[0], -1)
         return x
