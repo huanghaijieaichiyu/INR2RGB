@@ -189,55 +189,55 @@ def train(args):
                     fake_inputs.detach(), requires_grad=False)
                 # D 希望 real_loss 为 1
                 d_real_output = d_loss(real_inputs, real_lable)
-                d_real_output.backward()
                 d_x = real_inputs.mean().item()
                 # D希望 fake_loss 为 0
                 d_fake_output = d_loss(fake_inputs, fake_lable)
-                d_fake_output.backward()
                 d_g_z1 = fake_inputs.mean().item()
                 d_output = (d_real_output.item() +
                             d_fake_output.item()) / 2.
-                torch.nn.utils.clip_grad_norm_(
-                    discriminator.parameters(), 100)
-                d_optimizer.step()
+
                 '''--------------- 训练生成器 ----------------'''
                 # 延时训练生成器，先对判别器训练, 保证判别器的训练效果
-                if epoch+1 >= n_discriminator:
-                    fake_inputs = discriminator(fake.detach())
-                    # G 希望 fake 为 1 加上 psn及 ssim相似损失
-                    g_output = g_loss(fake_inputs, real_lable) + stable_loss(
-                        fake, high_images)
-                    g_output.backward()
-                    d_g_z2 = fake_inputs.mean().item()
-                    torch.nn.utils.clip_grad_norm_(generator.parameters(), 5)
-                    g_optimizer.step()
 
-                    gen_loss.append(g_output.item())
-                    dis_loss.append(d_output)
+                fake_inputs = discriminator(fake.detach())
+                # G 希望 fake 为 1 加上 psn及 ssim相似损失
+                g_output = g_loss(fake_inputs, real_lable) + stable_loss(
+                    fake, high_images)
 
-                    source_g.append(d_g_z2)
-                    pbar.set_description('||Epoch: [%d/%d]|--|--|Batch: [%d/%d]|--|--|Loss_D: %.4f|--|--|Loss_G: '
-                                         '%.4f|--|--|--|D(x): %.4f|--|--|D(G(z)): %.4f / %.4f|'
-                                         % (epoch + 1, args.epochs, i + 1, len(train_loader),
-                                            d_output, g_output.item(), d_x, d_g_z1, d_g_z2))
+                # 参数一起更新
+                d_real_output.backward()
+                d_fake_output.backward()
+                g_output.backward()
+                d_g_z2 = fake_inputs.mean().item()
+                torch.nn.utils.clip_grad_norm_(
+                    discriminator.parameters(), 100)
+                torch.nn.utils.clip_grad_norm_(generator.parameters(), 5)
+                d_optimizer.step()
+                g_optimizer.step()
 
-                    g_checkpoint = {
-                        'net': generator.state_dict(),
-                        'optimizer': g_optimizer.state_dict(),
-                        'epoch': epoch,
-                        'loss': g_loss.state_dict()
-                    }
-                    d_checkpoint = {
-                        'net': discriminator.state_dict(),
-                        'optimizer': d_optimizer.state_dict(),
-                        'epoch': epoch,
-                        'loss': d_loss.state_dict()
-                    }
-                    torch.save(g_checkpoint, path + '/generator/last.pt')
-                    torch.save(d_checkpoint, path + '/discriminator/last.pt')
+                gen_loss.append(g_output.item())
+                dis_loss.append(d_output)
 
-                else:
-                    pbar.set_description('判别器预热训练中')
+                source_g.append(d_g_z2)
+                pbar.set_description('||Epoch: [%d/%d]|--|--|Batch: [%d/%d]|--|--|Loss_D: %.4f|--|--|Loss_G: '
+                                     '%.4f|--|--|--|D(x): %.4f|--|--|D(G(z)): %.4f / %.4f|'
+                                     % (epoch + 1, args.epochs, i + 1, len(train_loader),
+                                        d_output, g_output.item(), d_x, d_g_z1, d_g_z2))
+
+                g_checkpoint = {
+                    'net': generator.state_dict(),
+                    'optimizer': g_optimizer.state_dict(),
+                    'epoch': epoch,
+                    'loss': g_loss.state_dict()
+                }
+                d_checkpoint = {
+                    'net': discriminator.state_dict(),
+                    'optimizer': d_optimizer.state_dict(),
+                    'epoch': epoch,
+                    'loss': d_loss.state_dict()
+                }
+                torch.save(g_checkpoint, path + '/generator/last.pt')
+                torch.save(d_checkpoint, path + '/discriminator/last.pt')
         # eval model
 
         if (epoch + 1) % 100 == 0 and (epoch + 1) >= 100:
