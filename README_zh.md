@@ -111,7 +111,18 @@ python predict.py --data 0 --model runs/train(3)/generator/last.pt
 
 ## 着色效果
 
-您可以通过比较 `fake.png` (模型生成的图像) 和 `real.png` (真实图像) 来查看模型的着色效果。这两张图片位于项目的根目录下。
+为了更直观地展示着色效果，请看以下对比：
+
+<table border="0">
+  <tr>
+    <td><b>模型生成 (fake.png)</b></td>
+    <td><b>真实图像 (real.png)</b></td>
+  </tr>
+  <tr>
+    <td><img src="fake.png" width="600"></td>  <!-- 放大图像宽度 -->
+    <td><img src="real.png" width="600"></td>  <!-- 放大图像宽度 -->
+  </tr>
+</table>
 
 ## 模型
 
