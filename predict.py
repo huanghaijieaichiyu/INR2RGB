@@ -1,5 +1,5 @@
 import argparse
-from engine import predict_live, predict
+from DeepTranserGAN import predict_live, predict
 
 
 def parse_args():
@@ -7,7 +7,7 @@ def parse_args():
     parser.add_argument("--data", type=str, default='0',
                         help='path to dataset, and 0 is to open your camara')
     parser.add_argument(
-        "--model", type=str, default='runs/train/generator/best.pt', help="path to model")
+        "--model", type=str, default='runs/train(1)/generator/last.pt', help="path to model")
     parser.add_argument("--batch_size", type=int, default=16,
                         help="size of the batches")  # batch大小
     parser.add_argument("--img_size", type=tuple,
