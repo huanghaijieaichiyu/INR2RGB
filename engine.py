@@ -94,7 +94,7 @@ def train(args):
         transforms.ToPILImage(),  # 先转换为PIL Image, 因为一些transform需要PIL Image作为输入
         transforms.Resize((256, 256)),  # 可选：调整大小
         transforms.ToTensor(),          # 转换为Tensor
-        transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))  # 可选：归一化
+        # transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))  # 可选：归一化
     ])
     # train_data = MyDataset(args.data, img_size=args.img_size)
 
@@ -141,7 +141,6 @@ def train(args):
         generator.train()
         # 参数储存
         source_g = [0.]
-        n_discriminator = 1  # 每训练一次生成器，训练 n_discriminator 次判别器
         d_g_z2 = 0.
         # 储存loss 判断模型好坏
         gen_loss = []
@@ -171,7 +170,6 @@ def train(args):
                     bar_format='{l_bar}{bar:10}| {n_fmt}/{total_fmt} {elapsed}', colour='#8762A5')
         for i, (low_images, high_images) in pbar:
 
-            # lamb = color.abs().max()  # 取绝对值最大值，避免负数超出索引
             low_images = low_images.to(device)
             high_images = high_images.to(device)
 

@@ -1,127 +1,72 @@
-'''
-Code by: 黄小海
-    这是一个将任意图像转换为低光照图像的程序，旨在制作你自己的低照度增强数据集。
-这个程序的数据集保存结构将仿照LOLdataset，即：
-LOLdataset
-├── eval15
-│   ├── high
-│   └── low
-└── our485
-    ├── high
-    └── low
-    
-    事先准备好你的数据集，仿照上述结构，将你的数据集放在LOLdataset目录下，
-    并且将high子文件夹中放置你的高光照图像，low子文件夹中保持空白即可。
-'''
-
-
-from operator import index
 import cv2
 import os
-
-import torch
 import numpy as np
-from torch.utils.data import DataLoader
-from torchvision import transforms
-from datasets.data_set import LowLightDataset
-from utils.color_trans import PSlab2rgb, PSrgb2lab, RGB_HSV
-from torch.utils.tensorboard.writer import SummaryWriter
+from sympy import im
 from tqdm import tqdm
+import colorsys
 
 
-def get_dataloader(data_dir, batch_size, img_size, num_workers, phase="train"):
+def darker(data_dir, ratio=0.5, phase="train"):
     """
-    获取数据加载器。
+    生成低光照图像。
+
     Args:
-        data_dir (str): 数据集目录。
-        batch_size (int): 批大小。
-        img_size (tuple): 图像大小。
-        num_workers (int): 数据加载工作线程数。
-        phase (str): 阶段，可选值为"train"或"test"。
-
-    Returns:
-        DataLoader: 数据加载器。
+        data_dir (str): 数据集根目录。
+        ratio (float): 亮度降低的比例，0到1之间。
+        phase (str): 阶段，可选值为 "train" 或 "test"。
     """
-    # 定义图像转换
-    transform = transforms.Compose([
-        transforms.ToPILImage(),  # 先转换为PIL Image, 因为一些transform需要PIL Image作为输入
-        transforms.Resize((375, 1242)),  # 调整大小
-        transforms.ToTensor(),  # 转换为Tensor
-        # transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5)) # 可选：归一化
-    ])
 
-    # 创建数据集实例
-    dataset = LowLightDataset(
-        image_dir=data_dir, transform=transform, phase=phase)
+    high_dir = os.path.join(data_dir, "our485", "high") if phase == "train" else os.path.join(
+        data_dir, "eval15", "high")
+    low_dir = os.path.join(data_dir, "our485", "low") if phase == "train" else os.path.join(
+        data_dir, "eval15", "low")
 
-    # 创建 DataLoader
-    dataloader = DataLoader(
-        dataset, batch_size=batch_size, shuffle=False, num_workers=num_workers)
+    # 确保 low 目录存在
+    os.makedirs(low_dir, exist_ok=True)
 
-    return dataloader
+    # 获取所有高光照图像的文件名
+    image_files = [f for f in os.listdir(high_dir) if f.endswith(
+        ('.png', '.jpg', '.jpeg', '.bmp'))]
 
-
-def darker(dataloder, batch_size=8, ratio=0.05, phase="train", data_dir="../datasets/LOLdataset"):
-    """
-    低光照增强。
-    Args:
-        dataloder (DataLoader): 数据加载器。
-
-    Returns:
-        DataLoader: 增强后的数据加载器。
-    """
-    # 获取数据集中的图片后缀名
-    sample_image_path = next(os.path.join(root, file) for root, _, files in os.walk(
-        data_dir) for file in files if file.endswith(('png', 'jpg', 'jpeg', 'bmp')))
-    img_format = sample_image_path.split('.')[-1]
-    # 获取图片名称
-    img_name = sample_image_path.split('/')[-1].split('.')[0]
     print("开始处理数据集...")
-    log = SummaryWriter(log_dir='runs/darker', comment='darker')
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    pbar = tqdm(enumerate(dataloder), total=len(dataloder))
+    pbar = tqdm(image_files)
     index = 0
-    hsvtrans = RGB_HSV()
-    with torch.no_grad():
-        for _, (_, high_img) in pbar:
-            # 低光照增强
-            high_img = high_img.to(device)
-            log.add_images('origin_high_img', high_img)
-            # 转换为HSV ， 低光照增强只对V通道进行操作 v取值范围为0-1
-            high_img = hsvtrans.rgb_to_hsv(high_img)
-            high_img[:, 2, :, :] = high_img[:, 2, :, :] * ratio
-            high_img = hsvtrans.hsv_to_rgb(high_img)
-            log.add_images('high_img', high_img)
+    for image_file in pbar:
+        # 读取高光照图像
+        high_img_path = os.path.join(high_dir, image_file)
+        high_img = cv2.imread(high_img_path)
 
-            dark_img = high_img.detach().squeeze(
-                0).cpu().numpy().transpose(1, 2, 0).astype(np.uint8)
-            # 可以修改为你需要的格式，例如 'jpg', 'jpeg', 'bmp' 等
-            path = os.path.join(
-                data_dir, f"our485/low/{index}.{img_format}") if phase == "train" else os.path.join(data_dir, f"eval15/low/{index}.{img_format}")
-            cv2.imwrite(path, cv2.cvtColor(dark_img * 255., cv2.COLOR_RGB2BGR))
-            index += 1
+        if high_img is None:
+            print(f"无法读取图像: {high_img_path}")
+            continue
+
+        # 转换为 HSV 色彩空间
+        hsv_img = cv2.cvtColor(high_img, cv2.COLOR_BGR2HSV)
+
+        # 降低 V (亮度) 通道的值
+        hsv_img[:, :, 2] = np.clip(hsv_img[:, :, 2].astype(
+            np.float32) * ratio, 0, 255).astype(np.float32)
+
+        # 转换回 BGR 色彩空间
+        dark_img = cv2.cvtColor(hsv_img, cv2.COLOR_HSV2BGR)
+
+        # 构建低光照图像的保存路径
+        low_img_path = os.path.join(
+            low_dir, f"{image_file}")
+
+        # 保存低光照图像
+        cv2.imwrite(low_img_path, dark_img)
+
+        index += 1
+
+    print("处理完成！请手动检查数据集。")
 
 
 if __name__ == '__main__':
     # 1. 设置数据集目录
     data_dir = "../datasets/kitti_LOL"  # 替换成你的数据集路径
+    ratio = 0.2  # 亮度降低的比例
 
-    # 2. 创建 DataLoader
-    # batch_size 必须为 1
-    batch_size = 1
-    assert batch_size == 1, "batch_size must be 1."
-    ratio = 0.05
-    img_size = (256, 256)
-    num_workers = 0
-    train_dataloder = get_dataloader(
-        data_dir, batch_size, img_size, num_workers, phase="train")
-    test_dataloder = get_dataloader(
-        data_dir, batch_size, img_size, num_workers, phase="test")
-    # 3. 低光照增强
-    darker(train_dataloder, ratio=ratio, batch_size=batch_size,
-           phase="train", data_dir=data_dir)
-    darker(test_dataloder, ratio=ratio, batch_size=batch_size,
-           phase="test", data_dir=data_dir)
-
-    print("处理完成！请手动检查数据集。")
-    # ...
+    # 2. 生成低光照图像
+    darker(data_dir, ratio=ratio, phase="train")
+    darker(data_dir, ratio=ratio, phase="test")
