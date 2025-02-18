@@ -1,3 +1,10 @@
+'''
+数据集类，用于加载LOL数据集。
+
+'''
+
+
+import numpy as np
 import os
 from torch.utils.data import Dataset, DataLoader
 from torchvision import transforms
@@ -32,7 +39,8 @@ class LowLightDataset(Dataset):
                 eval15_high_dir = os.path.join(eval15_dir, "high")
                 eval15_low_dir = os.path.join(eval15_dir, "low")
                 eval15_image_names = [f for f in os.listdir(
-                    eval15_low_dir) if f.endswith(".png")]
+                    eval15_high_dir) if any(
+                    f.endswith(ext) for ext in [".png", ".jpg", ".jpeg"])]  # 兼容多种图片格式
                 eval15_image_names.sort()
                 for img_name in eval15_image_names:
                     low_img_path = os.path.join(eval15_low_dir, img_name)
@@ -44,7 +52,7 @@ class LowLightDataset(Dataset):
             if os.path.exists(our485_dir):  # 检查目录是否存在
                 our485_high_dir = os.path.join(our485_dir, "high")
                 our485_low_dir = os.path.join(our485_dir, "low")
-                our485_image_names = [f for f in os.listdir(our485_low_dir) if any(
+                our485_image_names = [f for f in os.listdir(our485_high_dir) if any(
                     f.endswith(ext) for ext in [".png", ".jpg", ".jpeg"])]  # 兼容多种图片格式
                 our485_image_names.sort()
                 for img_name in our485_image_names:
@@ -64,12 +72,17 @@ class LowLightDataset(Dataset):
             tuple: (低光照图像, 正常光照图像)。
         """
         low_img_path, high_img_path = self.data[idx]
-
-        low_img = cv2.imread(low_img_path)  # OpenCV读取图像
-        low_img = cv2.cvtColor(low_img, cv2.COLOR_BGR2RGB)  # 转换为RGB
-
+        if os.path.exists(low_img_path):
+            low_img = cv2.imread(low_img_path)  # OpenCV读取图像
+            # 转换为RGB
+            low_img = cv2.cvtColor(
+                low_img, cv2.COLOR_BGR2RGB)
+        else:
+            low_img = np.zeros((256, 256, 3), dtype=np.float32)
         high_img = cv2.imread(high_img_path)  # OpenCV读取图像
-        high_img = cv2.cvtColor(high_img, cv2.COLOR_BGR2RGB)  # 转换为RGB
+        # 转换为RGB
+        high_img = cv2.cvtColor(
+            high_img, cv2.COLOR_BGR2RGB)
 
         if self.transform:
             low_img = self.transform(low_img)
@@ -81,7 +94,7 @@ class LowLightDataset(Dataset):
 # 示例用法:
 if __name__ == '__main__':
     # 1. 设置数据集目录
-    data_dir = "../datasets/LOLdataset"  # 替换成你的数据集路径
+    data_dir = "../datasets/kitti_LOL"  # 替换成你的数据集路径
 
     # 2. 定义图像转换
     transform = transforms.Compose([

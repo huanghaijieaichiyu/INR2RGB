@@ -357,7 +357,7 @@ def predict_live(self):
     checkpoint = torch.load(self.model)
     model.load_state_dict(checkpoint['net'])
     model.to(device)
-    cap = cv2.VideoCapture(0)  # 读取图像
+    cap = cv2.VideoCapture('test_dark_countryard.mp4')  # 读取图像
     fourcc = cv2.VideoWriter.fourcc(*'mp4v')
     write = cv2.VideoWriter()
     write.open(self.save_path + '/fake.mp4', fourcc=fourcc, fps=cap.get(cv2.CAP_PROP_FPS), isColor=True,
@@ -371,10 +371,10 @@ def predict_live(self):
         _, frame = cap.read()
         _, frame = cap.read()
         frame_pil = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-        # 是否需要resize取决于新图片格式与训练时的是否一致
+        '''# 是否需要resize取决于新图片格式与训练时的是否一致
         frame_pil = cv2.resize(frame_pil, self.img_size)
         # 是否需要resize取决于新图片格式与训练时的是否一致
-        frame_pil = cv2.resize(frame_pil, self.img_size)
+        frame_pil = cv2.resize(frame_pil, self.img_size)'''
 
         frame_pil = torch.tensor(np.array(
             frame_pil, np.float32) / 255., dtype=torch.float32).to(device)  # 转为tensor
@@ -382,8 +382,7 @@ def predict_live(self):
             0, 3, 1, 2)  # 提升维度--转换维度
         fake = model(frame_pil)
         fake = fake.squeeze(0).permute(1, 2, 0).cpu().detach().numpy()
-        fake *= 255.
-        fake = cv2.resize(fake, (640, 480))  # 维度还没降下来
+        # fake = cv2.resize(fake, (640, 480))  # 维度还没降下来
         cv2.imshow('fake', fake)
 
         cv2.imshow('origin', frame)

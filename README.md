@@ -152,3 +152,13 @@ LOLdataset/
 ## 许可证
 
 [检查 `LICENSE` 文件]
+
+## Examples
+
+Real Image:
+
+![Real Image](real.png)
+
+Fake Image:
+
+![Fake Image](fake.png)
